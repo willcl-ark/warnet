@@ -37,7 +37,6 @@ def generate_docker_compose(version, node_count):
         raise Exception("Failed to detect architecture.")
 
     services = {}
-    c = 33
     for i in range(node_count):
         services[f"bitcoin-node-{i}"] = {
             "container_name": f"warnet_{i}",
@@ -52,9 +51,11 @@ def generate_docker_compose(version, node_count):
             },
             "volumes": [
                 f"./config/bitcoin.conf:/root/.bitcoin/bitcoin.conf"
+            ],
+            "cap_add": [
+                "NET_ADMIN"
             ]
         }
-        c = c + 2
 
     compose_config = {
         "version": "3.8",
