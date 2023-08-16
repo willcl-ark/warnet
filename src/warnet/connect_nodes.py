@@ -89,6 +89,27 @@ def get_containers(client: docker.DockerClient,
     return [(container.name, container) for container in containers]
 
 
+def setup_network_rules(client: docker.DockerClient, containers):
+    filename = '/Users/will/src/warnet/src/warnet/setup_network_interfaces'
+
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+
+    for container_name, container in containers:
+        for line in lines:
+            line = line.strip()
+
+            if not line or line.startswith('#'):
+                continue
+
+            try:
+                container.exec_run(line)
+                logging.info(f"{container_name}: {line}")
+            except subprocess.CalledProcessError as e:
+                logging.error(
+                    f'{container_name}: Failed to execute: {line}. Error: {e}')
+
+
 def setup_network(client: docker.DockerClient, graph_file: str,
                   ip_addresses: dict):
     """
@@ -116,35 +137,40 @@ def docker_setup_network(client, ip_addresses):
     print(ip_addresses)
 
     for container_name, container in containers:
-        fake_ip = ip_addresses[container_name][0]
+        local_fake_ip = ip_addresses[container_name][0]
+        local_docker_ip = container.attrs['NetworkSettings']['Networks'][
+            'warnet_default']['IPAddress']
 
         # Add DNAT and SNAT rules for bi-directional communication with other containers
         for other_container_name, other_container in containers:
             if other_container_name != container_name:
-                other_container_docker_ip = other_container.attrs[
-                    'NetworkSettings']['Networks']['warnet_default'][
-                        'IPAddress']
+                other_docker_ip = other_container.attrs['NetworkSettings'][
+                    'Networks']['warnet_default']['IPAddress']
                 other_fake_ip = ip_addresses[other_container_name][0]
-                print(
-                    f"Other Container Docker IP: {other_container_docker_ip}")
+                logging.info(
+                    f"{container_name}: other container docker IP: {other_docker_ip}"
+                )
 
                 # DNAT Rule: Redirect traffic destined for other's fake IP to other's actual Docker IP
-                dnat_rule = f"iptables -t nat -A OUTPUT -d {other_fake_ip} -j DNAT --to-destination {other_container_docker_ip}"
-                print(f"DNAT Rule: {dnat_rule}")
+                dnat_rule = f"iptables -t nat -A OUTPUT -d {other_fake_ip} -j DNAT --to-destination {other_docker_ip}"
                 result = container.exec_run(dnat_rule)
                 if result.exit_code != 0:
                     logging.error(
-                        f"Failed to set DNAT rule in {container_name}. Error: {result.output.decode('utf-8')}"
+                        f"{container_name}: Failed to set DNAT rule in {container_name}. Error: {result.output.decode('utf-8')}"
                     )
+                else:
+                    logging.info(
+                        f"{container_name}: added DNAT Rule: {dnat_rule}")
 
-                # SNAT Rule: Rewrite the source IP of outgoing packets to this container's fake IP when sending to other's fake IP
-                snat_rule = f"iptables -t nat -A POSTROUTING -d {other_fake_ip} -j SNAT --to-source {fake_ip}"
-                print(f"SNAT Rule: {snat_rule}")
-                result = container.exec_run(snat_rule)
-                if result.exit_code != 0:
-                    logging.error(
-                        f"Failed to set SNAT rule in {container_name}. Error: {result.output.decode('utf-8')}"
-                    )
+                # snat_rule = f"iptables -t nat -A POSTROUTING -d {other_docker_ip} -j SNAT --to-source {local_fake_ip}"
+                # result = container.exec_run(snat_rule)
+                # if result.exit_code != 0:
+                #     logging.error(
+                #         f"{container_name}: Failed to set SNAT rule in {container_name}. Error: {result.output.decode('utf-8')}"
+                #     )
+                # else:
+                #     logging.info(
+                #         f"{container_name}: added SNAT Rule: {snat_rule}")
 
 
 def docker_compose():
@@ -164,6 +190,7 @@ def main():
     docker_compose()
     containers = get_containers(client)
     ip_addresses = generate_ip_addresses(containers, 1)
+    # setup_network_rules(client, containers)
     docker_setup_network(client, ip_addresses)
     setup_network(client, BITCOIN_GRAPH_FILE, ip_addresses)
 
