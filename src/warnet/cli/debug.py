@@ -30,17 +30,17 @@ def generate_compose(graph_file: str, network: str = "warnet"):
         print(f"Error generating compose: {e}")
 
 
-@debug.command()
-@click.argument("graph_file", type=str)
-@click.option("--network", default="warnet", show_default=True)
-def update_dns_seed(graph_file: Path = EXAMPLE_GRAPH_FILE, network: str = "warnet"):
-    """
-    Update the dns seed database using a <graph_file> on <--network> (default: "warnet")
-    """
-    try:
-        result = rpc_call(
-            "update_dns_seeder", {"graph_file": str(graph_file), "network": network}
-        )
-        print(result)
-    except Exception as e:
-        print(f"Error updating dns seed addresses: {e}")
+# @debug.command()
+# @click.argument("graph_file", type=str)
+# @click.option("--network", default="warnet", show_default=True)
+# def update_dns_seed(graph_file: Path = EXAMPLE_GRAPH_FILE, network: str = "warnet"):
+#     """
+#     Update the dns seed database using a <graph_file> on <--network> (default: "warnet")
+#     """
+#     try:
+#         result = rpc_call(
+#             "update_dns_seeder", {"graph_file": str(graph_file), "network": network}
+#         )
+#         print(result)
+#     except Exception as e:
+#         print(f"Error updating dns seed addresses: {e}")

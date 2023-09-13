@@ -301,19 +301,19 @@ def from_file(graph_file: str, force: bool = False, network: str = "warnet") -> 
     return f"Starting warnet network named '{network}' with the following parameters:\n{wn}"
 
 
-@jsonrpc.method()
-def update_dns_seeder(graph_file: str, network: str = "warnet") -> str:
-    try:
-        config_dir = gen_config_dir(network)
-        wn = Warnet.from_graph_file(graph_file, config_dir, network)
-        wn.generate_zone_file_from_tanks()
-        wn.apply_zone_file()
-        with open(wn.zone_file_path, "r") as f:
-            zone_file = f.read()
-
-        return f"DNS seeder update using zone file:\n{zone_file}"
-    except Exception as e:
-        return f"DNS seeder not updated due to exception: {e}"
+# @jsonrpc.method()
+# def update_dns_seeder(graph_file: str, network: str = "warnet") -> str:
+#     try:
+#         config_dir = gen_config_dir(network)
+#         wn = Warnet.from_graph_file(graph_file, config_dir, network)
+#         wn.generate_zone_file_from_tanks()
+#         wn.apply_zone_file()
+#         with open(wn.zone_file_path, "r") as f:
+#             zone_file = f.read()
+#
+#         return f"DNS seeder update using zone file:\n{zone_file}"
+#     except Exception as e:
+#         return f"DNS seeder not updated due to exception: {e}"
 
 
 @jsonrpc.method()
