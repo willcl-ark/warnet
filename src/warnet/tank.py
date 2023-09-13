@@ -255,6 +255,12 @@ class Tank:
                 #         "tag": "{{.Name}}"
                 #     }
                 # }
+                "healthcheck": {
+                    "test": ["CMD", "bitcoin-cli", "getblockchaininfo"],
+                    "interval": "30s",
+                    "timeout": "10s",
+                    "retries": 3,
+                },
             }
         )
 
