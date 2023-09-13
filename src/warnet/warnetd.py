@@ -287,8 +287,8 @@ def from_file(graph_file: str, force: bool = False, network: str = "warnet") -> 
             wn.write_docker_compose()
             wn.write_prometheus_config()
             wn.docker_compose_build_up()
-            wn.generate_zone_file_from_tanks()
-            wn.apply_zone_file()
+            # wn.generate_zone_file_from_tanks()
+            # wn.apply_zone_file()
             wn.apply_network_conditions()
             wn.connect_edges()
             logger.info(

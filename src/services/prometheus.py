@@ -1,4 +1,3 @@
-import docker
 from .base_service import BaseService
 
 PORT = 9090

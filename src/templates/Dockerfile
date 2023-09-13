@@ -50,8 +50,8 @@ RUN set -ex \
 # shrink image size with a second stage
 FROM debian:bookworm-slim
 
-ARG UID=3338
-ARG GID=3338
+ARG UID=1000
+ARG GID=1000
 ARG REPO
 # env var overrides
 ENV UID=$UID
@@ -84,6 +84,10 @@ RUN set -ex \
 COPY --from=builder /usr/local/bin/bitcoind /usr/local/bin/bitcoin-cli /usr/local/bin/
 COPY check_dns.sh /check_dns.sh
 COPY docker-entrypoint.sh /entrypoint.sh
+RUN mkdir $BITCOIN_DATA
+COPY bitcoin.conf $BITCOIN_DATA/bitcoin.conf
+# TODO: copy additional conf options from an env var?
+COPY torrc /etc/tor/torrc
 
 VOLUME ["/home/bitcoin/.bitcoin"]
 EXPOSE 8332 8333 18332 18333 18443 18444 38333 38332

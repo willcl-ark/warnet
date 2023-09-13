@@ -22,6 +22,7 @@ from warnet.utils import (
 CONTAINER_PREFIX_BITCOIND = "tank"
 CONTAINER_PREFIX_PROMETHEUS = "prometheus_exporter"
 logger = logging.getLogger("tank")
+COMPOSE_BATCH_NUM = 10
 
 
 class Tank:
@@ -93,7 +94,6 @@ class Tank:
             )
         self.config_dir = self.warnet.config_dir / str(self.suffix)
         self.config_dir.mkdir(parents=True, exist_ok=True)
-        self.write_torrc()
         return self
 
     @classmethod
@@ -193,13 +193,6 @@ class Tank:
             file.write(conf_file)
         self.conf_file = path
 
-    def write_torrc(self):
-        src_tor_conf_file = TEMPLATES / "torrc"
-
-        dest_path = self.config_dir / "torrc"
-        shutil.copyfile(src_tor_conf_file, dest_path)
-        self.torrc_file = dest_path
-
     def add_services(self, services):
         assert self.index is not None
         assert self.conf_file is not None
@@ -233,20 +226,16 @@ class Tank:
             {
                 "container_name": self.container_name,
                 "build": build,
-                "volumes": [
-                    f"{self.conf_file}:/home/bitcoin/.bitcoin/bitcoin.conf",
-                    f"{self.torrc_file}:/etc/tor/torrc_original",
-                ],
                 "networks": {
                     self.docker_network: {
                         "ipv4_address": f"{self.ipv4}",
                     }
                 },
-                "extra_hosts": [f"dummySeed.invalid:{DNS_IP_ADDR}"], # hack to trick regtest into doing dns lookups
+                # "extra_hosts": [f"dummySeed.invalid:{DNS_IP_ADDR}"], # hack to trick regtest into doing dns lookups
                 "labels": {"warnet": "tank"},
                 "privileged": True,
                 "cap_add": ["NET_ADMIN", "NET_RAW"],
-                "dns": [DNS_IP_ADDR],
+                # "dns": [DNS_IP_ADDR],
                 # "depends_on": ["fluentd"],
                 # "logging": {
                 #     "driver": "fluentd",
@@ -263,20 +252,29 @@ class Tank:
                 },
             }
         )
+        if self.index <= COMPOSE_BATCH_NUM:
+            pass
+        else:
+            depends = max(self.index - COMPOSE_BATCH_NUM,0)
+            services[self.container_name].update(
+                {
+                    "depends_on": [f"{self.docker_network}_{CONTAINER_PREFIX_BITCOIND}_{depends:06}"]
+                }
+            )
 
         # Add the prometheus data exporter in a neighboring container
-        services[self.exporter_name] = {
-            "image": "jvstein/bitcoin-prometheus-exporter",
-            "container_name": self.exporter_name,
-            "environment": {
-                "BITCOIN_RPC_HOST": self.container_name,
-                "BITCOIN_RPC_PORT": self.rpc_port,
-                "BITCOIN_RPC_USER": self.rpc_user,
-                "BITCOIN_RPC_PASSWORD": self.rpc_password,
-            },
-            "ports": [f"{8335 + self.index}:9332"],
-            "networks": [self.docker_network],
-        }
+        # services[self.exporter_name] = {
+        #     "image": "jvstein/bitcoin-prometheus-exporter",
+        #     "container_name": self.exporter_name,
+        #     "environment": {
+        #         "BITCOIN_RPC_HOST": self.container_name,
+        #         "BITCOIN_RPC_PORT": self.rpc_port,
+        #         "BITCOIN_RPC_USER": self.rpc_user,
+        #         "BITCOIN_RPC_PASSWORD": self.rpc_password,
+        #     },
+        #     "ports": [f"{8335 + self.index}:9332"],
+        #     "networks": [self.docker_network],
+        # }
 
     def add_scrapers(self, scrapers):
         scrapers.append(
