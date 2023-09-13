@@ -34,6 +34,8 @@ from warnet.utils import (
 )
 
 WARNETD_PORT = 9276
+GUNICORN_WORKERS=4
+GUNICORN_TIMEOUT=300
 
 # Determine the log file path:
 basedir = os.environ.get("XDG_STATE_HOME")
@@ -368,8 +370,10 @@ def run_gunicorn():
 
     command = [
         "gunicorn",
-        "-w",
-        "4",
+        "--workers",
+        f"{GUNICORN_WORKERS}",
+        "--timeout",
+        f"{GUNICORN_TIMEOUT}",
         f"-b :{WARNETD_PORT}",
         "--log-level",
         "debug",
