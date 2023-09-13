@@ -12,12 +12,15 @@ from collections import defaultdict
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from logging import StreamHandler
+from io import BytesIO
+from pathlib import Path
 from typing import List, Dict
 from flask import Flask
 from flask_jsonrpc.app import JSONRPC
 
+import networkx
 import scenarios
-from warnet.warnet import Warnet
+from warnet.warnet import Warnet, create_graph_with_probability
 from warnet.client import (
     get_bitcoin_cli,
     get_bitcoin_debug_log,
@@ -334,8 +337,75 @@ def generate_compose(graph_file: str, network: str = "warnet") -> str:
         return f.read()
 
 
-@jsonrpc.method("down")
-def down(network: str = "warnet") -> str:
+@jsonrpc.method("graph_generate")
+def graph_generate(num_nodes: int, probability: float, file: str = "", random: bool = False) -> str:
+    graph = create_graph_with_probability(num_nodes, probability, random)
+    if file:
+        file_path = Path(file)
+        networkx.write_graphml(graph, file_path)
+        return f"Generated graph and written to file: {file}"
+    bio = BytesIO()
+    networkx.write_graphml(graph, bio)
+    xml_data = bio.getvalue()
+    return f"Generated graph:\n{xml_data.decode('utf-8')}"
+
+
+@jsonrpc.method("network_from_graph")
+def network_from_graph(graph_file: str, force: bool = False, network: str = "warnet") -> str:
+    """
+    Run a warnet with topology loaded from a <graph_file>
+    """
+    config_dir = gen_config_dir(network)
+    if config_dir.exists():
+        if force:
+            shutil.rmtree(config_dir)
+        else:
+            return f"Config dir {config_dir} already exists, not overwriting existing warnet without --force"
+    wn = Warnet.from_graph_file(graph_file, config_dir, network)
+
+    def thread_start(wn):
+        try:
+            wn.write_bitcoin_confs()
+            wn.write_docker_compose()
+            wn.write_prometheus_config()
+            wn.docker_compose_build_up()
+            wn.generate_zone_file_from_tanks()
+            wn.apply_zone_file()
+            wn.apply_network_conditions()
+            wn.connect_edges()
+            logger.info(
+                f"Created warnet named '{network}' from graph file {graph_file}"
+            )
+        except Exception as e:
+            logger.error(f"Exception {e}")
+
+    threading.Thread(target=lambda: thread_start(wn)).start()
+    return f"Starting warnet network named '{network}' with the following parameters:\n{wn}"
+
+
+@jsonrpc.method("network_up")
+def network_up(network: str = "warnet") -> str:
+    wn = Warnet.from_network(network=network, tanks=False)
+
+    def thread_start(wn):
+        try:
+            wn.docker_compose_up()
+            # Update warnet from docker here to get ip addresses
+            wn = Warnet.from_docker_env(network)
+            wn.apply_network_conditions()
+            wn.connect_edges()
+            logger.info(
+                f"Resumed warnet named '{network}' from config dir {wn.config_dir}"
+            )
+        except Exception as e:
+            logger.error(f"Exception {e}")
+
+    threading.Thread(target=lambda: thread_start(wn)).start()
+    return f"Resuming warnet..."
+
+
+@jsonrpc.method("network_down")
+def network_down(network: str = "warnet") -> str:
     """
     Stop all docker containers in <network>.
     """

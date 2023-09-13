@@ -14,20 +14,19 @@ def network():
     """Network commands"""
 
 
-
 @network.command()
 @click.argument("graph_file", default=EXAMPLE_GRAPH_FILE, type=click.Path())
 @click.option("--force", default=False, is_flag=True, type=bool)
 @click.option("--network", default="warnet", show_default=True)
-def start(
+def from_graph(
     graph_file: Path = EXAMPLE_GRAPH_FILE, force: bool = False, network: str = "warnet"
 ):
     """
-    Start a warnet with topology loaded from a <graph_file> into <--network> (default: "warnet")
+    Create a warnet with topology loaded from a <graph_file> into <--network> (default: "warnet")
     """
     try:
         result = rpc_call(
-            "from_file",
+            "network_from_graph",
             {"graph_file": str(graph_file), "force": force, "network": network},
         )
         print(result)
@@ -42,7 +41,7 @@ def up(network: str = "warnet"):
     Run 'docker-compose up' on a warnet named <--network> (default: "warnet").
     """
     try:
-        result = rpc_call("up", {"network": network})
+        result = rpc_call("network_up", {"network": network})
         print(result)
     except Exception as e:
         print(f"Error creating network: {e}")
@@ -55,7 +54,7 @@ def down(network: str = "warnet"):
     Run 'docker-compose down on a warnet named <--network> (default: "warnet").
     """
     try:
-        result = rpc_call("down", {"network": network})
+        result = rpc_call("network_down", {"network": network})
         print(result)
     except Exception as e:
         print(f"Error running docker-compose down on network {network}: {e}")
