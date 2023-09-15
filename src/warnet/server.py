@@ -266,8 +266,6 @@ class Server():
                 wn.write_prometheus_config()
                 wn.write_fork_observer_config()
                 wn.docker_compose_build_up()
-                wn.generate_zone_file_from_tanks()
-                wn.apply_zone_file()
                 wn.apply_network_conditions()
                 wn.connect_edges()
                 self.logger.info(
@@ -276,7 +274,15 @@ class Server():
             except Exception as e:
                 self.logger.error(f"Exception {e}")
 
+        def dns_thread_start(wn):
+            try:
+                wn.generate_zone_file_from_tanks()
+                wn.apply_zone_file()
+            except Exception as e:
+                self.logger.error(f"Exception {e}")
+
         threading.Thread(target=lambda: thread_start(wn)).start()
+        threading.Thread(target=lambda: dns_thread_start(wn)).start()
         return f"Starting warnet network named '{network}' with the following parameters:\n{wn}"
 
 

@@ -7,6 +7,7 @@ import logging
 import networkx
 import shutil
 import subprocess
+import time
 import yaml
 from pathlib import Path
 from templates import TEMPLATES
@@ -157,7 +158,24 @@ class Warnet:
         """
         Sync the dns seed list served by dns-seed with currently active Tanks.
         """
+ 
         seeder = self.docker.containers.get(f"{self.docker_network}_{DNS_SEED_NAME}")
+
+        # Wait for the container to become healthy
+        while True:
+            try:
+                status = seeder.attrs['State']['Health']['Status']
+            except KeyError:
+                # If the 'Health' key is not present, the container does not have a health check
+                raise RuntimeError('Container does not have a health check')
+
+            if status == 'healthy':
+                break
+            elif status == 'unhealthy':
+                raise RuntimeError('Container is unhealthy')
+            else:
+                # If the status is 'starting', wait for a short time before checking again
+                time.sleep(5)
 
         # Read the content from the generated zone file
         with open(self.config_dir / ZONE_FILE_NAME, "r") as f:
