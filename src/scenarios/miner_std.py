@@ -25,7 +25,7 @@ class MinerStd(WarnetTestFramework):
             "--interval",
             dest="interval",
             default=60,
-            type=int,
+            type=float,
             help="Number of seconds between block generation (default 60 seconds)",
         )
 
