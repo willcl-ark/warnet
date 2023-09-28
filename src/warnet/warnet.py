@@ -2,15 +2,16 @@
   Warnet is the top-level class for a simulated network.
 """
 
-import docker
 import logging
-import networkx
 import shutil
 import subprocess
 import yaml
 from pathlib import Path
 from templates import TEMPLATES
-from typing import List
+from typing import List, Optional
+
+import docker
+import networkx as nx
 
 from services.prometheus import Prometheus
 from services.node_exporter import NodeExporter
@@ -36,7 +37,7 @@ class Warnet:
         self.bitcoin_network: str = "regtest"
         self.docker_network: str = "warnet"
         self.subnet: str = "100.0.0.0/8"
-        self.graph = None
+        self.graph: Optional[nx.graph.Graph] = None
         self.graph_name = "graph.graphml"
         self.tanks: List[Tank] = []
 
@@ -66,7 +67,7 @@ class Warnet:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(graph_file, destination)
         self.docker_network = network
-        self.graph = networkx.read_graphml(graph_file, node_type=int)
+        self.graph = nx.read_graphml(graph_file, node_type=int)
         self.tanks_from_graph()
         logger.info(f"Created Warnet using directory {self.config_dir}")
         return self
@@ -98,7 +99,7 @@ class Warnet:
                 self.tanks.append(tank)
 
         # Get network graph edges from graph file (required for network restarts)
-        self.graph = networkx.read_graphml(Path(self.config_dir / self.graph_name), node_type=int)
+        self.graph = nx.read_graphml(Path(self.config_dir / self.graph_name), node_type=int)
 
         return self
 
@@ -114,7 +115,9 @@ class Warnet:
 
     @bubble_exception_str
     def tanks_from_graph(self):
+        assert self.graph is not None
         for node_id in self.graph.nodes():
+            assert isinstance(node_id, (int, str))  # make typecheckers happy :)
             if int(node_id) != len(self.tanks):
                 raise Exception(
                     f"Node ID in graph must be incrementing integers (got '{node_id}', expected '{len(self.tanks)}')"
@@ -174,10 +177,10 @@ class Warnet:
 
     @bubble_exception_str
     def connect_edges(self):
-        if self.graph is None:
-            return
+        assert self.graph is not None
 
         for edge in self.graph.edges():
+            assert len(edge) == 2 # make typecheckers happy :)
             (src, dst) = edge
             src_tank = self.tanks[src]
             dst_ip = self.tanks[dst].ipv4

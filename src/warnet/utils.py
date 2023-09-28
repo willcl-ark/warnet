@@ -389,7 +389,7 @@ def version_cmp_ge(version_str, target_str):
 
     # handle custom versions
     except ValueError:
-        logger.debug(ValueError(f"Unknown version string: {version_str} or {target_str} could not be compared"))
+        # logger.debug(ValueError(f"Unknown version string: {version_str} or {target_str} could not be compared"))
         logger.debug("Assuming custom version can use `addpeeraddress`")
         # assume that custom versions are recent
         return True
