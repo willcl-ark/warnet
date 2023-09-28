@@ -1,3 +1,5 @@
+import shutil
+from templates import TEMPLATES
 from .base_service import BaseService
 
 FLUENT_IP = "100.102.108.117"
@@ -16,9 +18,6 @@ class Fluentd(BaseService):
                 f"{self.config_dir / FLUENT_CONF}:/fluentd/etc/{FLUENT_CONF}"
             ],
             "command": ["/bin/sh", "-c", f"sleep 10 && fluentd -c /fluentd/etc/{FLUENT_CONF}"],
-            "networks": {
-                self.docker_network: {
-                    "ipv4_address": f"{FLUENT_IP}",
-                }
-            },
         }
+
+        shutil.copy(TEMPLATES / FLUENT_CONF, config_dir)

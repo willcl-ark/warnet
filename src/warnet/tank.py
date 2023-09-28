@@ -242,14 +242,13 @@ class Tank:
                 "privileged": True,
                 "cap_add": ["NET_ADMIN", "NET_RAW"],
                 "dns": [DNS_IP_ADDR],
-                # "depends_on": ["fluentd"],
-                # "logging": {
-                #     "driver": "fluentd",
-                #     "options": {
-                #         "fluentd-address": f"{FLUENT_IP}:24224",
-                #         "tag": "{{.Name}}"
-                #     }
-                # }
+                "depends_on": ["fluentd"],
+                "logging": {
+                    "driver": "fluentd",
+                    "options": {
+                        "tag": "{{.Name}}"
+                    }
+                }
             }
         )
 
