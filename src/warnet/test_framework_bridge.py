@@ -134,9 +134,9 @@ class WarnetTestFramework(BitcoinTestFramework):
         parser.add_argument(
             "--nocleanup",
             dest="nocleanup",
-            default=False,
+            default=True,
             action="store_true",
-            help="Leave bitcoinds and test.* datadir on exit or error",
+            help="Don't clean up the test.* datadir on exit or error (default: True)",
         )
         parser.add_argument(
             "--nosandbox",
