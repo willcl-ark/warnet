@@ -6,6 +6,7 @@ import random
 import signal
 import sys
 import tempfile
+import time
 from test_framework.p2p import NetworkThread
 from test_framework.test_framework import (
     BitcoinTestFramework,
@@ -34,16 +35,48 @@ class WarnetTestFramework(BitcoinTestFramework):
     # The following functions are chopped-up hacks of
     # the original methods from BitcoinTestFramework
 
+    def start_logging(self):
+        # hacked from _start_logging()
+        # Add logger and logging handlers
+        self.log = logging.getLogger('TestFramework')
+        self.log.setLevel(logging.DEBUG)
+        # Create file handler to log all messages
+        fh = logging.FileHandler(self.options.tmpdir + '/test_framework.log', encoding='utf-8')
+        fh.setLevel(logging.DEBUG)
+        # Create console handler to log messages to stderr. By default this logs only error messages, but can be configured with --loglevel.
+        ch = logging.StreamHandler(sys.stdout)
+        # User can provide log level as a number or string (eg DEBUG). loglevel was caught as a string, so try to convert it to an int
+        ll = int(self.options.loglevel) if self.options.loglevel.isdigit() else self.options.loglevel.upper()
+        ch.setLevel(ll)
+        # Format logs the same as bitcoind's debug.log with microprecision (so log files can be concatenated and sorted)
+        file_formatter = logging.Formatter(fmt='%(asctime)s.%(msecs)03d000Z %(name)s (%(levelname)s): %(message)s', datefmt='%Y-%m-%dT%H:%M:%S')
+        file_formatter.converter = time.gmtime
+        stream_formatter = logging.Formatter(fmt='%(message)s')
+        fh.setFormatter(file_formatter)
+        ch.setFormatter(stream_formatter)
+        # add the handlers to the logger
+        self.log.addHandler(fh)
+        self.log.addHandler(ch)
+
+        if self.options.trace_rpc:
+            rpc_logger = logging.getLogger("BitcoinRPC")
+            rpc_logger.setLevel(logging.DEBUG)
+            rpc_handler = logging.StreamHandler(sys.stdout)
+            rpc_handler.setLevel(logging.DEBUG)
+            rpc_logger.addHandler(rpc_handler)
+
+
     def setup(self):
         signal.signal(signal.SIGTERM, self.handle_sigterm)
-        # hacked from _start_logging()
+        # Set up temp directory and start logging
+        if self.options.tmpdir:
+            self.options.tmpdir = os.path.abspath(self.options.tmpdir)
+            os.makedirs(self.options.tmpdir, exist_ok=False)
+        else:
+            self.options.tmpdir = tempfile.mkdtemp(prefix=TMPDIR_PREFIX)
+
         # Scenarios will log plain messages to stdout only, which will can redirected by warnet
-        self.log = logging.getLogger()
-        self.log.setLevel(logging.INFO) # set this to DEBUG to see ALL RPC CALLS
-        ch = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(fmt='%(message)s')
-        ch.setFormatter(formatter)
-        self.log.addHandler(ch)
+        self.start_logging()
 
         warnet = Warnet.from_network(self.options.network)
         for i, tank in enumerate(warnet.tanks):
@@ -71,13 +104,6 @@ class WarnetTestFramework(BitcoinTestFramework):
             self.nodes.append(node)
 
         self.num_nodes = len(self.nodes)
-
-        # Set up temp directory and start logging
-        if self.options.tmpdir:
-            self.options.tmpdir = os.path.abspath(self.options.tmpdir)
-            os.makedirs(self.options.tmpdir, exist_ok=False)
-        else:
-            self.options.tmpdir = tempfile.mkdtemp(prefix=TMPDIR_PREFIX)
 
         # self.options.cachedir = os.path.abspath(self.options.cachedir)
 

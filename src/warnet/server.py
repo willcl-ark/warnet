@@ -174,18 +174,20 @@ class Server():
             return f"Scenario {scenario} not found at {scenario_path}."
 
         try:
-            run_cmd = [sys.executable, scenario_path] + additional_args + [f"--network={network}"]
+            run_cmd = [sys.executable, '-u', scenario_path] + additional_args + [f"--network={network}"]
             self.logger.debug(f"Running {run_cmd}")
-
             proc = subprocess.Popen(
                 run_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                bufsize=1,
+                text=True,
             )
 
             def proc_logger():
                 for line in proc.stdout:
-                    self.logger.info(line.decode().rstrip())
+                    self.logger.info(line.rstrip())
+
             t = threading.Thread(target=lambda: proc_logger())
             t.daemon = True
             t.start()
