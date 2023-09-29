@@ -1,6 +1,7 @@
 import logging
 import os
 import pkgutil
+import re
 import shutil
 import signal
 import subprocess
@@ -47,7 +48,6 @@ class Server():
         self.logger: logging.Logger
         self.setup_logging()
 
-
     def setup_logging(self):
         # Ensure the directory exists
         os.makedirs(os.path.dirname(self.log_file_path), exist_ok=True)
@@ -72,7 +72,6 @@ class Server():
 
         self.app.before_request(log_request)
 
-
     def setup_rpc(self):
         # Tanks
         self.jsonrpc.register(self.bcli)
@@ -92,7 +91,8 @@ class Server():
         self.jsonrpc.register(self.generate_compose)
         # Server
         self.jsonrpc.register(self.stop)
-
+        # Logs
+        self.jsonrpc.register(self.grep_logs)
 
     def bcli(self, node: int, method: str, params: List[str] = [], network: str = "warnet") -> str:
         """
@@ -104,7 +104,6 @@ class Server():
         except Exception as e:
             raise Exception(f"{e}")
 
-
     def debug_log(self, network: str, node: int) -> str:
         """
         Fetch the Bitcoin Core debug log from <node>
@@ -114,7 +113,6 @@ class Server():
             return str(result)
         except Exception as e:
             raise Exception(f"{e}")
-
 
     def messages(self, network: str, node_a: int, node_b: int) -> str:
         """
@@ -154,7 +152,6 @@ class Server():
         except Exception as e:
             raise Exception(f"{e}")
 
-
     def list(self) -> List[tuple]:
         """
         List available scenarios in the Warnet Test Framework
@@ -168,7 +165,6 @@ class Server():
             return scenario_list
         except Exception as e:
             return [f"Exception {e}"]
-
 
     def run(self, scenario: str, additional_args: List[str], network: str = "warnet") -> str:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -206,7 +202,6 @@ class Server():
             self.logger.error(f"Exception occurred while running the scenario: {e}")
             return f"Exception {e}"
 
-
     def stop_scenario(self, pid: int) -> str:
         matching_scenarios = [sc for sc in self.running_scenarios if sc["pid"] == pid]
         if matching_scenarios:
@@ -217,7 +212,6 @@ class Server():
         else:
             return f"Could not find scenario with PID {pid}."
 
-
     def list_running_scenarios(self) -> List[Dict]:
         return [{
             "pid": sc["pid"],
@@ -225,7 +219,6 @@ class Server():
             "active": sc["proc"].poll() is None,
             "network": sc["network"],
         } for sc in self.running_scenarios]
-
 
     def up(self, network: str = "warnet") -> str:
         wn = Warnet.from_network(network)
@@ -245,7 +238,6 @@ class Server():
 
         threading.Thread(target=lambda: thread_start(wn)).start()
         return f"Resuming warnet..."
-
 
     def from_file(self, graph_file: str, force: bool = False, network: str = "warnet") -> str:
         """
@@ -279,7 +271,6 @@ class Server():
         threading.Thread(target=lambda: thread_start(wn)).start()
         return f"Starting warnet network named '{network}' with the following parameters:\n{wn}"
 
-
     def down(self, network: str = "warnet") -> str:
         """
         Stop all docker containers in <network>.
@@ -289,7 +280,6 @@ class Server():
             return "Stopping warnet"
         except Exception as e:
             return f"Exception {e}"
-
 
     def update_dns_seeder(self, graph_file: str, network: str = "warnet") -> str:
         try:
@@ -303,7 +293,6 @@ class Server():
             return f"DNS seeder update using zone file:\n{zone_file}"
         except Exception as e:
             return f"DNS seeder not updated due to exception: {e}"
-
 
     def generate_compose(self, graph_file: str, network: str = "warnet") -> str:
         """
@@ -321,13 +310,39 @@ class Server():
         with open(docker_compose_path, "r") as f:
             return f.read()
 
-
     def stop(self) -> str:
         """
         Stop warnet.
         """
         os.kill(os.getppid(), signal.SIGTERM)
         return "Stopping warnet server..."
+
+    def grep_logs(self, pattern: str, network: str = "warnet") -> str:
+        """
+        Grep the logs from the fluentd container for a regex pattern
+        """
+        container_name = f"{network}_fluentd"
+        compiled_pattern = re.compile(pattern)
+
+        warnet = Warnet.from_network(network)
+        docker = warnet.docker
+
+        now = datetime.utcnow()
+        log_stream = docker.api.logs(
+            container=container_name,
+            stdout=True,
+            stderr=True,
+            stream=True,
+            until=now,
+        )
+
+        matching_logs = []
+        for log_entry in log_stream:
+            log_entry_str = log_entry.decode('utf-8').strip()
+            if compiled_pattern.search(log_entry_str):
+                matching_logs.append(log_entry_str)
+
+        return '\n'.join(matching_logs)
 
 
 def run_server():

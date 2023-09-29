@@ -9,6 +9,7 @@ Monitor and analyze the emergent behaviours of Bitcoin networks.
 * Nodes can be assigned scenarios which can be programmed using the Bitcoin Core function test [test_framework language](https://github.com/bitcoin/bitcoin/tree/master/test/functional).
 * Nodes can have traffic shaping parameters assigned to them via the graph using [tc-netem](https://manpages.ubuntu.com/manpages/trusty/man8/tc-netem.8.html) tool.
 * Log files from nodes can be accessed directly
+* A unified log file can be grepped using regex
 * Some Bitcoin Core activity is polled and reported via a Graphana dashboard.
 
 ## Network topology specification
@@ -171,6 +172,14 @@ warcli scenarios run miner_std --allnodes --interval=5
 ```
 
 This will run the run the scenario in the background until it exits or is killed by the user.
+
+### Grep logs
+
+You can grep a unified log for all nodes using `grep-logs` and a regex expression:
+
+```bash
+warcli grep-logs "got inv"
+```
 
 ### Stopping
 
