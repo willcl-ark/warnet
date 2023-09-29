@@ -7,21 +7,34 @@ ARG REPO
 ARG BRANCH
 ARG BITCOIN_URL
 
-# install or build
+# Install necessary utilities
 RUN set -ex \
     && apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         wget \
+        git \
+        curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Get the latest commit hash from the specified branch
+# This will trigger a rebuild if the branch changes tip
+RUN set -ex \
+    && if [ -n "${REPO}" ] && [ -n "${BRANCH}" ]; then \
+        export LATEST_COMMIT=$(curl -s "https://api.github.com/repos/${REPO}/branches/${BRANCH}" | grep sha | cut -d '"' -f 4); \
+    fi
+
+# install or build
+RUN set -ex \
     && if [ -n "${BITCOIN_URL}" ]; then \
         wget "${BITCOIN_URL}/bitcoin-core-${BITCOIN_VERSION}/bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz"; \
         tar -xzf "bitcoin-${BITCOIN_VERSION}-${ARCH}-linux-gnu.tar.gz" -C /usr/local --strip-components=1; \
     fi \
     && if [ -n "${REPO}" ]; then \
-        apt-get install -y \
+        apt-get update && apt-get install -y \
             automake \
             autotools-dev \
             build-essential \
-            git \
             libtool \
             libboost-dev \
             libevent-dev \
