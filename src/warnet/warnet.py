@@ -19,6 +19,7 @@ from services.grafana import Grafana
 from services.tor import Tor
 from services.fork_observer import ForkObserver
 from services.fluentd import Fluentd
+from services.cadvisor import CAdvisor
 from services.dns_seed import DnsSeed, ZONE_FILE_NAME, DNS_SEED_NAME
 from warnet.tank import Tank
 from warnet.utils import parse_bitcoin_conf, gen_config_dir, bubble_exception_str, version_cmp_ge
@@ -271,6 +272,7 @@ class Warnet:
             Tor(self.docker_network, TEMPLATES),
             ForkObserver(self.docker_network, self.fork_observer_config),
             Fluentd(self.docker_network, self.config_dir),
+            CAdvisor(self.docker_network, self.config_dir),
         ]
         if dns:
             services.append(DnsSeed(self.docker_network, TEMPLATES, self.config_dir))
@@ -295,19 +297,19 @@ class Warnet:
             "global": {"scrape_interval": "15s"},
             "scrape_configs": [
                 {
-                    "job_name": "prometheus",
+                    "job_name": f"{self.docker_network}_prometheus",
                     "scrape_interval": "5s",
-                    "static_configs": [{"targets": ["localhost:9090"]}],
+                    "static_configs": [{"targets": [f"{self.docker_network}_prometheus:9090"]}],
                 },
                 {
-                    "job_name": "node-exporter",
+                    "job_name": f"{self.docker_network}_node-exporter",
                     "scrape_interval": "5s",
-                    "static_configs": [{"targets": ["node-exporter:9100"]}],
+                    "static_configs": [{"targets": [f"{self.docker_network}_node-exporter:9100"]}],
                 },
                 {
-                    "job_name": "cadvisor",
+                    "job_name": f"{self.docker_network}_cadvisor",
                     "scrape_interval": "5s",
-                    "static_configs": [{"targets": ["cadvisor:8080"]}],
+                    "static_configs": [{"targets": [f"{self.docker_network}_cadvisor:8080"]}],
                 },
             ],
         }
