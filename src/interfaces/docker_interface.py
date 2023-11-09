@@ -111,7 +111,7 @@ class DockerInterface(ContainerInterface):
             )
         return result.output.decode("utf-8")
 
-    def get_bitcoin_debug_log(self, container_name: str):
+    def get_bitcoin_debug_log(self, container_name: str) -> str:
         now = datetime.utcnow()
 
         logs = self.client.api.logs(
@@ -123,7 +123,7 @@ class DockerInterface(ContainerInterface):
         )
         return cast(bytes, logs).decode('utf8') # cast for typechecker
 
-    def get_bitcoin_cli(self, tank: Tank, method: str, params=None):
+    def get_bitcoin_cli(self, tank: Tank, method: str, params=None) -> str:
         if params:
             cmd = f"bitcoin-cli -regtest -rpcuser={tank.rpc_user} -rpcport={tank.rpc_port} -rpcpassword={tank.rpc_password} {method} {' '.join(map(str, params))}"
         else:

@@ -6,11 +6,12 @@ import subprocess
 import sys
 import threading
 from datetime import datetime
+from functools import wraps
 from io import BytesIO
 from logging.handlers import RotatingFileHandler
 from logging import StreamHandler
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Callable, Any
 from flask import Flask, request
 from flask_jsonrpc.app import JSONRPC
 
@@ -24,6 +25,25 @@ from warnet.utils import (
 )
 
 WARNET_SERVER_PORT = 9276
+
+
+def rpc_error_handler(f: Callable) -> Callable:
+    """
+    Decorator to add error handling to RPC calls.
+    """
+
+    @wraps(f)
+    def wrapper(self, *args, **kwargs) -> Any:
+        try:
+            result = f(self, *args, **kwargs)
+            return result
+        except Exception as e:
+            args_str = ", ".join(repr(arg) for arg in args)
+            kwargs_str = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
+            self.logger.error(f"Error processing request with args: ({args_str}), kwargs: ({kwargs_str}):\n{e}")
+            return "Server error processing request"
+    return wrapper
+
 
 class Server():
     def __init__(self):
@@ -95,81 +115,69 @@ class Server():
         # Logs
         self.jsonrpc.register(self.logs_grep)
 
+    @rpc_error_handler
     def tank_bcli(self, node: int, method: str, params: List[str] = [], network: str = "warnet") -> str:
         """
         Call bitcoin-cli on <node> <method> <params> in [network]
         """
         wn = Warnet.from_network(network)
-        try:
-            result = wn.container_interface.get_bitcoin_cli(wn.tanks[node], method, params)
-            return str(result)
-        except Exception as e:
-            raise Exception(f"{e}")
+        return wn.container_interface.get_bitcoin_cli(wn.tanks[node], method, params)
 
+    @rpc_error_handler
     def tank_debug_log(self, network: str, node: int) -> str:
         """
-        Fetch the Bitcoin Core debug log from <node>
+        Fetch the Bitcoin Core debug log from <noe>
         """
         wn = Warnet.from_network(network)
-        try:
-            result = wn.container_interface.get_bitcoin_debug_log(wn.tanks[node].container_name)
-            return str(result)
-        except Exception as e:
-            raise Exception(f"{e}")
+        return wn.container_interface.get_bitcoin_debug_log(wn.tanks[node].container_name)
 
+    @rpc_error_handler
     def tank_messages(self, network: str, node_a: int, node_b: int) -> str:
         """
         Fetch messages sent between <node_a> and <node_b>.
         """
         wn = Warnet.from_network(network)
-        try:
-            messages = [
-                msg for msg in wn.container_interface.get_messages(wn.tanks[node_a].container_name, wn.tanks[node_b].ipv4, wn.bitcoin_network) if msg is not None
-            ]
-            if not messages:
-                return f"No messages found between {node_a} and {node_b}"
+        messages = [
+            msg for msg in wn.container_interface.get_messages(wn.tanks[node_a].container_name, wn.tanks[node_b].ipv4, wn.bitcoin_network) if msg is not None
+        ]
+        if not messages:
+            return f"No messages found between {node_a} and {node_b}"
 
-            messages_str_list = []
+        messages_str_list = []
 
-            for message in messages:
-                # Check if 'time' key exists and its value is a number
-                if not (message.get("time") and isinstance(message["time"], (int, float))):
-                    continue
+        for message in messages:
+            # Check if 'time' key exists and its value is a number
+            if not (message.get("time") and isinstance(message["time"], (int, float))):
+                continue
 
-                timestamp = datetime.utcfromtimestamp(message["time"] / 1e6).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-                direction = ">>>" if message.get("outbound", False) else "<<<"
-                msgtype = message.get("msgtype", "")
-                body_dict = message.get("body", {})
+            timestamp = datetime.utcfromtimestamp(message["time"] / 1e6).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            direction = ">>>" if message.get("outbound", False) else "<<<"
+            msgtype = message.get("msgtype", "")
+            body_dict = message.get("body", {})
 
-                if not isinstance(body_dict, dict):  # messages will be in dict form
-                    continue
+            if not isinstance(body_dict, dict):  # messages will be in dict form
+                continue
 
-                body_str = ", ".join(f"{key}: {value}" for key, value in body_dict.items())
-                messages_str_list.append(f"{timestamp} {direction} {msgtype} {body_str}")
+            body_str = ", ".join(f"{key}: {value}" for key, value in body_dict.items())
+            messages_str_list.append(f"{timestamp} {direction} {msgtype} {body_str}")
 
-            result_str = "\n".join(messages_str_list)
+        return "\n".join(messages_str_list)
 
-            return result_str
-
-        except Exception as e:
-            raise Exception(f"{e}")
-
+    @rpc_error_handler
     def scenarios_list(self) -> List[tuple]:
         """
         List available scenarios in the Warnet Test Framework
         """
-        try:
-            scenario_list = []
-            for s in pkgutil.iter_modules(scenarios.__path__):
-                m = pkgutil.resolve_name(f"scenarios.{s.name}")
-                if hasattr(m, "cli_help"):
-                    scenario_list.append((s.name, m.cli_help()))
-            return scenario_list
-        except Exception as e:
-            return [f"Exception {e}"]
+        scenario_list = []
+        for s in pkgutil.iter_modules(scenarios.__path__):
+            m = pkgutil.resolve_name(f"scenarios.{s.name}")
+            if hasattr(m, "cli_help"):
+                scenario_list.append((s.name, m.cli_help()))
+        return scenario_list
 
+    @rpc_error_handler
     def scenarios_run(self, scenario: str, additional_args: List[str], network: str = "warnet") -> str:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         scenario_path = os.path.join(base_dir, "scenarios", f"{scenario}.py")
@@ -177,35 +185,33 @@ class Server():
         if not os.path.exists(scenario_path):
             return f"Scenario {scenario} not found at {scenario_path}."
 
-        try:
-            run_cmd = [sys.executable, scenario_path] + additional_args + [f"--network={network}"]
-            self.logger.debug(f"Running {run_cmd}")
+        run_cmd = [sys.executable, scenario_path] + additional_args + [f"--network={network}"]
+        self.logger.debug(f"Running {run_cmd}")
 
-            proc = subprocess.Popen(
-                run_cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
+        proc = subprocess.Popen(
+            run_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
-            def proc_logger():
-                for line in proc.stdout:
-                    self.logger.info(line.decode().rstrip())
-            t = threading.Thread(target=lambda: proc_logger())
-            t.daemon = True
-            t.start()
+        def proc_logger():
+            for line in proc.stdout:
+                self.logger.info(line.decode().rstrip())
 
-            self.running_scenarios.append({
-                "pid": proc.pid,
-                "cmd": f"{scenario} {' '.join(additional_args)}",
-                "proc": proc,
-                "network": network,
-            })
+        t = threading.Thread(target=lambda: proc_logger())
+        t.daemon = True
+        t.start()
 
-            return f"Running scenario {scenario} with PID {proc.pid} in the background..."
-        except Exception as e:
-            self.logger.error(f"Exception occurred while running the scenario: {e}")
-            return f"Exception {e}"
+        self.running_scenarios.append({
+            "pid": proc.pid,
+            "cmd": f"{scenario} {' '.join(additional_args)}",
+            "proc": proc,
+            "network": network,
+        })
 
+        return f"Running scenario {scenario} with PID {proc.pid} in the background..."
+
+    @rpc_error_handler
     def scenarios_stop(self, pid: int) -> str:
         matching_scenarios = [sc for sc in self.running_scenarios if sc["pid"] == pid]
         if matching_scenarios:
@@ -216,6 +222,7 @@ class Server():
         else:
             return f"Could not find scenario with PID {pid}."
 
+    @rpc_error_handler
     def scenarios_list_running(self) -> List[Dict]:
         return [{
             "pid": sc["pid"],
@@ -224,27 +231,26 @@ class Server():
             "network": sc["network"],
         } for sc in self.running_scenarios]
 
+    @rpc_error_handler
     def network_up(self, network: str = "warnet") -> str:
         wn = Warnet.from_network(network)
 
         def thread_start(wn):
-            try:
-                wn.container_interface.up()
-                # Update warnet from docker here to get ip addresses
-                wn = Warnet.from_network(network)
-                wn.apply_network_conditions()
-                wn.connect_edges()
-                self.logger.info(
-                    f"Resumed warnet named '{network}' from config dir {wn.config_dir}"
-                )
-            except Exception as e:
-                self.logger.error(f"Exception {e}")
+            wn.container_interface.up()
+            # Update warnet from docker here to get ip addresses
+            wn = Warnet.from_network(network)
+            wn.apply_network_conditions()
+            wn.connect_edges()
+            self.logger.info(
+                f"Resumed warnet named '{network}' from config dir {wn.config_dir}"
+            )
 
         t = threading.Thread(target=lambda: thread_start(wn))
         t.daemon
         t.start()
         return f"Resuming warnet..."
 
+    @rpc_error_handler
     def network_from_file(self, graph_file: str, force: bool = False, network: str = "warnet") -> str:
         """
         Run a warnet with topology loaded from a <graph_file>
@@ -258,26 +264,24 @@ class Server():
         wn = Warnet.from_graph_file(graph_file, config_dir, network)
 
         def thread_start(wn):
-            try:
-                wn.generate_deployment()
-                # grep: disable-exporters
-                # wn.write_prometheus_config()
-                wn.write_fork_observer_config()
-                wn.warnet_build()
-                wn.warnet_up()
-                wn.apply_network_conditions()
-                wn.connect_edges()
-                self.logger.info(
-                    f"Created warnet named '{network}' from graph file {graph_file}"
-                )
-            except Exception as e:
-                self.logger.error(f"Exception {e}")
+            wn.generate_deployment()
+            # grep: disable-exporters
+            # wn.write_prometheus_config()
+            wn.write_fork_observer_config()
+            wn.warnet_build()
+            wn.warnet_up()
+            wn.apply_network_conditions()
+            wn.connect_edges()
+            self.logger.info(
+                f"Created warnet named '{network}' from graph file {graph_file}"
+            )
 
         t = threading.Thread(target=lambda: thread_start(wn))
         t.daemon
         t.start()
         return f"Starting warnet network named '{network}' with the following parameters:\n{wn}"
 
+    @rpc_error_handler
     def graph_generate(self, params: List[str], outfile: str, version: str, bitcoin_conf: Optional[str] = None, random: bool = False) -> str:
         graph_func = nx.generators.random_internet_as_graph
 
@@ -292,17 +296,16 @@ class Server():
         xml_data = bio.getvalue()
         return f"Generated graph:\n\n{xml_data.decode('utf-8')}"
 
+    @rpc_error_handler
     def network_down(self, network: str = "warnet") -> str:
         """
         Stop all containers in <network>.
         """
         wn = Warnet.from_network(network)
-        try:
-            wn.warnet_down()
-            return "Stopping warnet"
-        except Exception as e:
-            return f"Exception {e}"
+        wn.warnet_down()
+        return "Stopping warnet"
 
+    @rpc_error_handler
     def network_info(self, network: str = "warnet") -> str:
         """
         Get info about a warnet network named <network>
@@ -310,7 +313,7 @@ class Server():
         wn = Warnet.from_network(network)
         return f"{wn}"
 
-
+    @rpc_error_handler
     def network_status(self, network: str = "warnet") -> List[dict]:
         """
         Get running status of a warnet network named <network>
@@ -324,6 +327,7 @@ class Server():
             "status": status})
         return stats
 
+    @rpc_error_handler
     def generate_deployment(self, graph_file: str, network: str = "warnet") -> str:
         """
         Generate the deployment file for a graph file
@@ -340,6 +344,7 @@ class Server():
         with open(wn.deployment_file, "r") as f:
             return f.read()
 
+    @rpc_error_handler
     def server_stop(self) -> str:
         """
         Stop warnet.
@@ -347,6 +352,7 @@ class Server():
         sys.exit(0)
         return "Stopping warnet server..."
 
+    @rpc_error_handler
     def logs_grep(self, pattern: str, network: str = "warnet") -> str:
         """
         Grep the logs from the fluentd container for a regex pattern
