@@ -1,9 +1,11 @@
 name: Test
+
 on:
   push:
     branches:
       - main
   pull_request:
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,10 +35,8 @@ jobs:
       - run: pip install -e .
       - run: just kd
       - run: kubectl wait --for=condition=Ready --timeout=2m pod rpc-0
-      - run: |
-          kubectl port-forward --v=8 svc/rpc 9276:9276 &
-          sleep 5
-          ./test/rpc_test.py k8s
+      - run: sleep 5
+      - run: kubectl port-forward --v=8 svc/rpc 9276:9276 & ./test/rpc_test.py k8s
       - run: just kdd
   graph:
     runs-on: ubuntu-latest
