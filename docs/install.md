@@ -79,7 +79,15 @@ source .venv/bin/activate
 
 ```bash
 pip install --upgrade pip
-pip install -e .
+
+# Either install cli deps only
+pip install -e .[cli]
+
+# Or server deps only
+pip install -e .[server]
+
+# Or install all dependencies
+pip install -e .[all]
 ```
 
 # Next: [Running Warnet](running.md)
