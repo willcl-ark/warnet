@@ -24,14 +24,14 @@ LN_CONTAINER_NAME = "ln"
 
 class KubernetesBackend(BackendInterface):
     def __init__(
-        self, config_dir: Path, network_name: str, namespace="default", logs_pod="fluentd"
+        self, config_dir: Path, network_name: str, logs_pod="fluentd"
     ) -> None:
         super().__init__(config_dir)
         # assumes the warnet rpc server is always
         # running inside a k8s cluster as a statefulset
         config.load_incluster_config()
         self.client = client.CoreV1Api()
-        self.namespace = namespace
+        self.namespace = "warnet"
         self.logs_pod = logs_pod
         self.network_name = network_name
 
@@ -187,14 +187,13 @@ class KubernetesBackend(BackendInterface):
         tank_index: int,
         b_ipv4: str,
         bitcoin_network: str = "regtest",
-        namespace: str = "default",
     ):
         subdir = "/" if bitcoin_network == "main" else f"{bitcoin_network}/"
         dirs = self.exec_run(
             tank_index,
             ServiceType.BITCOIN,
             f"ls /home/bitcoin/.bitcoin/{subdir}message_capture",
-            namespace,
+            self.namespace,
         )
         dirs = dirs.splitlines()
         messages = []
@@ -205,7 +204,7 @@ class KubernetesBackend(BackendInterface):
                     # Fetch the file contents from the container
                     file_path = f"/home/bitcoin/.bitcoin/{subdir}message_capture/{dir_name}/{file}"
                     blob = self.exec_run(
-                        tank_index, ServiceType.BITCOIN, f"cat {file_path}", namespace
+                        tank_index, ServiceType.BITCOIN, f"cat {file_path}", self.namespace
                     )
 
                     # Parse the blob
@@ -243,7 +242,7 @@ class KubernetesBackend(BackendInterface):
 
     def warnet_from_deployment(self, warnet):
         # Get pod details from Kubernetes deployment
-        pods = self.client.list_namespaced_pod(namespace="default")
+        pods = self.client.list_namespaced_pod(namespace=self.namespace)
         for pod in pods.items:
             tank = self.tank_from_deployment(pod, warnet)
             if tank is not None:
@@ -368,7 +367,7 @@ class KubernetesBackend(BackendInterface):
         return client.V1Pod(
             api_version="v1",
             kind="Pod",
-            metadata=client.V1ObjectMeta(name=name, namespace="default", labels={"app": name}),
+            metadata=client.V1ObjectMeta(name=name, namespace=self.namespace, labels={"app": name}),
             spec=client.V1PodSpec(
                 # Might need some more thinking on the pod restart policy, setting to Never for now
                 # This means if a node has a problem it dies
@@ -379,6 +378,7 @@ class KubernetesBackend(BackendInterface):
 
     def create_bitcoind_service(self, tank) -> client.V1Service:
         service_name = f"bitcoind-service-{tank.index}"
+        print(f"creating service using {service_name=:}")
         service = client.V1Service(
             api_version="v1",
             kind="Service",
