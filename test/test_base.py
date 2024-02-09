@@ -57,7 +57,8 @@ class TestBase:
                 self.wait_for_all_tanks_status(target="stopped", timeout=60, interval=1)
 
             print("\nStopping server")
-            self.warcli("stop", False)
+            if self.backend != "k8s":
+                self.warcli("stop", False)
         except Exception as e:
             # Remove the temporary docker network when we quit.
             # If the warnet server exited prematurely then docker-compose down
