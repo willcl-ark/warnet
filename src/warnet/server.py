@@ -65,6 +65,7 @@ class Server:
         self.setup_logging()
         self.setup_rpc()
         self.logger.info("Started server")
+
         self.app.add_url_rule("/-/healthy", view_func=self.healthy)
 
         # register a well known /-/healthy endpoint for liveness tests
