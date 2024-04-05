@@ -3,7 +3,7 @@ use anyhow::{bail, Context};
 use base64::{engine::general_purpose, Engine as _};
 use clap::Subcommand;
 use jsonrpsee::core::params::ObjectParams;
-use prettytable::{row, Table};
+use prettytable::{format::consts::FORMAT_BOX_CHARS, row, Table};
 use std::path::PathBuf;
 
 #[derive(Subcommand, Debug)]
@@ -38,6 +38,7 @@ async fn handle_available(params: ObjectParams) -> anyhow::Result<()> {
         .context("Making RPC to fetch available scenarios")?;
     if let serde_json::Value::Array(scenarios) = data {
         let mut table = Table::new();
+        table.set_format(*FORMAT_BOX_CHARS);
         table.add_row(row!["Scenario", "Description"]);
         for scenario in scenarios {
             if let serde_json::Value::Array(details) = scenario {
@@ -99,6 +100,7 @@ async fn handle_active(params: ObjectParams) -> anyhow::Result<()> {
         .context("Making RPC call to list running scenarios")?;
     if let serde_json::Value::Array(scenarios) = data {
         let mut table = Table::new();
+        table.set_format(*FORMAT_BOX_CHARS);
         table.add_row(row!["PID", "Command", "Network", "Active"]);
         for scenario in scenarios {
             if let serde_json::Value::Object(details) = scenario {

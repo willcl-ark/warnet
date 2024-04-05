@@ -2,7 +2,7 @@ use anyhow::{bail, Context};
 use base64::{engine::general_purpose, Engine as _};
 use clap::Subcommand;
 use jsonrpsee::core::params::ObjectParams;
-use prettytable::{cell, Row, Table};
+use prettytable::{cell, format::consts::FORMAT_BOX_CHARS, Row, Table};
 use serde_json::Value;
 use std::path::PathBuf;
 
@@ -59,6 +59,7 @@ fn handle_network_start_response(data: serde_json::Value) -> anyhow::Result<()> 
     // warnet table
     if let Some(warnet_headers) = data["warnet_headers"].as_array() {
         let mut table = Table::new();
+        table.set_format(*FORMAT_BOX_CHARS);
         let headers: Vec<_> = warnet_headers
             .iter()
             .map(|header| header.as_str().unwrap_or(""))
@@ -88,6 +89,7 @@ fn handle_network_start_response(data: serde_json::Value) -> anyhow::Result<()> 
     // tanks table
     if let Some(tank_headers) = data["tank_headers"].as_array() {
         let mut table = Table::new();
+        table.set_format(*FORMAT_BOX_CHARS);
         let headers: Vec<_> = tank_headers
             .iter()
             .map(|header| header.as_str().unwrap_or(""))
