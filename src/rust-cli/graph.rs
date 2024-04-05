@@ -252,7 +252,7 @@ fn handle_create_command(
     Ok(())
 }
 
-pub async fn handle_graph_command(command: &GraphCommand) -> anyhow::Result<()> {
+pub fn handle_graph_command(command: &GraphCommand) -> anyhow::Result<()> {
     match command {
         GraphCommand::Create {
             number,

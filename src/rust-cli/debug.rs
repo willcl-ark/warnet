@@ -1,5 +1,4 @@
-use anyhow::Context;
-use jsonrpsee::core::params::ObjectParams;
+use serde_json::{json, Value};
 use std::path::PathBuf;
 
 use clap::Subcommand;
@@ -15,18 +14,11 @@ pub enum DebugCommand {
     },
 }
 
-pub async fn handle_debug_command(
-    command: &DebugCommand,
-    mut rpc_params: ObjectParams,
-) -> anyhow::Result<()> {
+pub fn handle_debug_command(command: &DebugCommand, mut rpc_params: Value) -> anyhow::Result<()> {
     match command {
         DebugCommand::GenerateCompose { graph_file_path } => {
-            rpc_params
-                .insert("graph_file", graph_file_path.to_str())
-                .context("Adding graph_file_path to rpc params")?;
-            let data = make_rpc_call("generate_compose", rpc_params)
-                .await
-                .context("Calling generate_compose RPC")?;
+            rpc_params["graph_file"] = json!(graph_file_path.to_str());
+            let data = make_rpc_call("generate_compose", &rpc_params);
             println!("Docker-compose file generated: {:?}", data);
         }
     }

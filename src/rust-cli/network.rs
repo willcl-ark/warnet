@@ -1,9 +1,8 @@
 use anyhow::{bail, Context};
 use base64::{engine::general_purpose, Engine as _};
 use clap::Subcommand;
-use jsonrpsee::core::params::ObjectParams;
 use prettytable::{cell, Row, Table};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::path::PathBuf;
 
 use crate::rpc_call::make_rpc_call;
@@ -118,20 +117,13 @@ fn handle_network_start_response(data: serde_json::Value) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub async fn handle_network_command(
-    command: &NetworkCommand,
-    mut params: ObjectParams,
-) -> anyhow::Result<()> {
+pub fn handle_network_command(command: &NetworkCommand, mut params: Value) -> anyhow::Result<()> {
     let (request, params) = match command {
         NetworkCommand::Start { graph_file, force } => {
             let b64_graph =
                 graph_file_to_b64(graph_file).context("Reading graph file to base 64")?;
-            params
-                .insert("graph_file", b64_graph)
-                .context("Add base64 graph file to params")?;
-            params
-                .insert("force", *force)
-                .context("Add force bool to params")?;
+            params["graph_file"] = json!(b64_graph);
+            params["force"] = json!(force);
             ("network_from_file", params)
         }
         NetworkCommand::Up {} => ("network_up", params),
@@ -142,7 +134,7 @@ pub async fn handle_network_command(
         NetworkCommand::Export {} => ("network_export", params),
     };
 
-    let data = make_rpc_call(request, params).await?;
+    let data = make_rpc_call(request, &params)?;
     match request {
         "network_status" => {
             handle_network_status_response(data).context("Handling network status response")?

@@ -1,5 +1,7 @@
-use anyhow::Context;
 use clap::{Parser, Subcommand};
+use debug::handle_debug_command;
+use network::handle_network_command;
+use serde_json::json;
 
 mod debug;
 mod general;
@@ -9,11 +11,11 @@ mod network;
 mod rpc_call;
 mod scenarios;
 mod util;
-use crate::debug::{handle_debug_command, DebugCommand};
+use crate::debug::DebugCommand;
 use crate::general::*;
 use crate::graph::{handle_graph_command, GraphCommand};
 use crate::image::{handle_image_command, ImageCommand};
-use crate::network::{handle_network_command, NetworkCommand};
+use crate::network::NetworkCommand;
 use crate::scenarios::{handle_scenario_command, ScenarioCommand};
 
 #[derive(Parser, Debug)]
@@ -94,35 +96,33 @@ enum Commands {
     Stop {},
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
+fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
-    let mut rpc_params = jsonrpsee::core::params::ObjectParams::new();
+
+    let mut rpc_params = json!({});
     if let Some(network_value) = &cli.network {
-        rpc_params
-            .insert("network", network_value)
-            .context("Adding --network to rpc_params")?;
+        rpc_params["network"] = json!(network_value);
     }
 
     match &cli.command {
         Some(Commands::Debug { command }) => {
             if let Some(command) = command {
-                handle_debug_command(command, rpc_params).await?;
+                handle_debug_command(command, rpc_params)?;
             }
         }
         Some(Commands::Graph { command }) => {
             if let Some(command) = command {
-                handle_graph_command(command).await?;
+                handle_graph_command(command)?;
             }
         }
         Some(Commands::Network { command }) => {
             if let Some(command) = command {
-                handle_network_command(command, rpc_params).await?;
+                handle_network_command(command, rpc_params)?;
             }
         }
         Some(Commands::Scenarios { command }) => {
             if let Some(command) = command {
-                handle_scenario_command(command, rpc_params).await?;
+                handle_scenario_command(command, rpc_params)?;
             }
         }
         Some(Commands::Rpc {
@@ -130,31 +130,31 @@ async fn main() -> anyhow::Result<()> {
             method,
             params,
         }) => {
-            handle_rpc_commands(NodeType::BitcoinCli, node, method, params, rpc_params).await?;
+            handle_rpc_commands(NodeType::BitcoinCli, node, method, params, rpc_params)?;
         }
         Some(Commands::LnCli {
             node,
             method,
             params,
         }) => {
-            handle_rpc_commands(NodeType::LnCli, node, method, params, rpc_params).await?;
+            handle_rpc_commands(NodeType::LnCli, node, method, params, rpc_params)?;
         }
         Some(Commands::DebugLog { node }) => {
-            handle_debug_log_command(node, rpc_params).await?;
+            handle_debug_log_command(node, rpc_params)?;
         }
         Some(Commands::Image { command }) => {
             if let Some(command) = command {
-                handle_image_command(command).await?;
+                handle_image_command(command)?;
             }
         }
         Some(Commands::Messages { node_a, node_b }) => {
-            handle_messages_command(node_a, node_b, rpc_params).await?;
+            handle_messages_command(node_a, node_b, rpc_params)?;
         }
         Some(Commands::GrepLogs { pattern }) => {
-            handle_grep_logs_command(pattern, rpc_params).await?;
+            handle_grep_logs_command(pattern, rpc_params)?;
         }
         Some(Commands::Stop {}) => {
-            handle_stop_command(rpc_params).await?;
+            handle_stop_command(rpc_params)?;
         }
         None => println!("No command provided"),
     }
