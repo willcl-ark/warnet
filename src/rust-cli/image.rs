@@ -145,7 +145,7 @@ fn build_image(
     }
 }
 
-pub async fn handle_image_command(command: &ImageCommand) -> anyhow::Result<()> {
+pub fn handle_image_command(command: &ImageCommand) -> anyhow::Result<()> {
     match command {
         ImageCommand::Build {
             repo,

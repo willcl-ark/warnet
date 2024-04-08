@@ -1,6 +1,6 @@
 use crate::rpc_call::make_rpc_call;
 use anyhow::Context;
-use jsonrpsee::core::params::ObjectParams;
+use serde_json::{json, Value};
 
 use crate::util::pretty_print_value;
 
@@ -9,81 +9,59 @@ pub enum NodeType {
     BitcoinCli,
 }
 
-pub async fn handle_rpc_commands(
+pub fn handle_rpc_commands(
     node_type: NodeType,
     node_index: &u64,
     method: &String,
     rpc_params: &Option<Vec<String>>,
-    mut params: ObjectParams,
+    mut params: Value,
 ) -> anyhow::Result<()> {
-    params
-        .insert("node", node_index)
-        .context("add node_index param")?;
-    params
-        .insert("method", method)
-        .context("add method param")?;
+    params["node"] = json!(node_index);
+    params["method"] = json!(method);
     if let Some(p) = rpc_params {
-        params.insert("params", p).context("add rpc params")?;
+        params["params"] = json!(p);
     }
     let data = match node_type {
-        NodeType::LnCli => make_rpc_call("tank_lncli", params)
-            .await
-            .context("make RPC call lncli")?,
-        NodeType::BitcoinCli => make_rpc_call("tank_bcli", params)
-            .await
-            .context("make RPC call bitcoin-cli")?,
+        NodeType::LnCli => make_rpc_call("tank_lncli", &params).context("make RPC call lncli")?,
+        NodeType::BitcoinCli => {
+            make_rpc_call("tank_bcli", &params).context("make RPC call bitcoin-cli")?
+        }
     };
     pretty_print_value(&data).context("Pretty print the result")?;
     Ok(())
 }
 
-pub async fn handle_debug_log_command(node: &u64, mut params: ObjectParams) -> anyhow::Result<()> {
-    params
-        .insert("node", node)
-        .context("add node_index param")?;
-    let data = make_rpc_call("tank_debug_log", params)
-        .await
-        .context("make RPC call tank_debug_log")?;
+pub fn handle_debug_log_command(node: &u64, mut params: Value) -> anyhow::Result<()> {
+    params["node"] = json!(node);
+    let data = make_rpc_call("tank_debug_log", &params).context("make RPC call tank_debug_log")?;
     pretty_print_value(&data).context("pretty print result")?;
     Ok(())
 }
 
-pub async fn handle_messages_command(
+pub fn handle_messages_command(
     node_a: &u64,
     node_b: &u64,
-    mut params: ObjectParams,
+    mut params: Value,
 ) -> anyhow::Result<()> {
-    params
-        .insert("node_a", node_a)
-        .context("add node_b param")?;
-    params
-        .insert("node_b", node_b)
-        .context("add node_b param")?;
-    let data = make_rpc_call("tank_messages", params)
-        .await
-        .context("Failed to make RPC call tank_messages")?;
+    params["node_a"] = json!(node_a);
+    params["node_b"] = json!(node_b);
+    let data =
+        make_rpc_call("tank_messages", &params).context("Failed to make RPC call tank_messages")?;
     pretty_print_value(&data).context("pretty print result")?;
     Ok(())
 }
 
-pub async fn handle_grep_logs_command(
-    pattern: &String,
-    mut params: ObjectParams,
-) -> anyhow::Result<()> {
-    params
-        .insert("pattern", pattern)
-        .context("add pattern param")?;
-    let data = make_rpc_call("logs_grep", params)
-        .await
-        .context("Failed to make RPC call tank_messages")?;
+pub fn handle_grep_logs_command(pattern: &String, mut params: Value) -> anyhow::Result<()> {
+    params["pattern"] = json!(pattern);
+    let data =
+        make_rpc_call("logs_grep", &params).context("Failed to make RPC call tank_messages")?;
     pretty_print_value(&data).context("pretty print result")?;
     Ok(())
 }
 
-pub async fn handle_stop_command(params: ObjectParams) -> anyhow::Result<()> {
-    let data = make_rpc_call("server_stop", params)
-        .await
-        .context("Failed to make RPC call server_stop")?;
+pub fn handle_stop_command(params: Value) -> anyhow::Result<()> {
+    let data =
+        make_rpc_call("server_stop", &params).context("Failed to make RPC call server_stop")?;
     pretty_print_value(&data).context("pretty print result")?;
     Ok(())
 }

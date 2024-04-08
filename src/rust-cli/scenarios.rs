@@ -2,8 +2,8 @@ use crate::rpc_call::make_rpc_call;
 use anyhow::{bail, Context};
 use base64::{engine::general_purpose, Engine as _};
 use clap::Subcommand;
-use jsonrpsee::core::params::ObjectParams;
 use prettytable::{row, Table};
+use serde_json::{json, Value};
 use std::path::PathBuf;
 
 #[derive(Subcommand, Debug)]
@@ -32,9 +32,8 @@ pub enum ScenarioCommand {
         pid: u64,
     },
 }
-async fn handle_available(params: ObjectParams) -> anyhow::Result<()> {
-    let data = make_rpc_call("scenarios_available", params)
-        .await
+fn handle_available(params: Value) -> anyhow::Result<()> {
+    let data = make_rpc_call("scenarios_available", &params)
         .context("Making RPC to fetch available scenarios")?;
     if let serde_json::Value::Array(scenarios) = data {
         let mut table = Table::new();
@@ -55,47 +54,36 @@ async fn handle_available(params: ObjectParams) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn handle_run(
-    mut params: ObjectParams,
+fn handle_run(
+    mut params: Value,
     scenario: &str,
     additional_args: &Vec<String>,
 ) -> anyhow::Result<()> {
-    params
-        .insert("scenario", scenario)
-        .context("Add scenario to params")?;
-    params
-        .insert("additional_args", additional_args)
-        .context("Add additional_args to params")?;
-    let data = make_rpc_call("scenarios_run", params)
-        .await
+    params["scenario"] = json!(scenario);
+    params["additional_args"] = json!(additional_args);
+    let data = make_rpc_call("scenarios_run", &params)
         .context("Making RPC call to run scenario with remote file")?;
     println!("{:?}", data);
     Ok(())
 }
 
-async fn handle_run_file(
-    mut params: ObjectParams,
+fn handle_run_file(
+    mut params: Value,
     scenario_path: &PathBuf,
     additional_args: &Vec<String>,
 ) -> anyhow::Result<()> {
     let file_contents = std::fs::read(scenario_path).context("Failed to read scenario file")?;
     let scenario_base64 = general_purpose::STANDARD.encode(file_contents);
-    params
-        .insert("scenario_base64", scenario_base64)
-        .context("Adding scenario to params")?;
-    params
-        .insert("additional_args", additional_args)
-        .context("Adding additional_args to params")?;
-    let data = make_rpc_call("scenarios_run_file", params)
-        .await
+    params["scenario_base64"] = json!(scenario_base64);
+    params["additional_args"] = json!(additional_args);
+    let data = make_rpc_call("scenarios_run_file", &params)
         .context("Making RPC call to run scenario with local file")?;
     println!("{:?}", data);
     Ok(())
 }
 
-async fn handle_active(params: ObjectParams) -> anyhow::Result<()> {
-    let data = make_rpc_call("scenarios_list_running", params)
-        .await
+fn handle_active(params: Value) -> anyhow::Result<()> {
+    let data = make_rpc_call("scenarios_list_running", &params)
         .context("Making RPC call to list running scenarios")?;
     if let serde_json::Value::Array(scenarios) = data {
         let mut table = Table::new();
@@ -128,10 +116,9 @@ async fn handle_active(params: ObjectParams) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn handle_stop(mut params: ObjectParams, pid: &u64) -> anyhow::Result<()> {
-    params.insert("pid", pid).context("Add pid to params")?;
-    let data = make_rpc_call("scenarios_stop", params)
-        .await
+fn handle_stop(mut params: Value, pid: &u64) -> anyhow::Result<()> {
+    params["pid"] = json!(pid);
+    let data = make_rpc_call("scenarios_stop", &params)
         .context("Making RPC call to stop running scenario")?;
     if let serde_json::Value::String(message) = data {
         println!("{}", message);
@@ -141,23 +128,16 @@ async fn handle_stop(mut params: ObjectParams, pid: &u64) -> anyhow::Result<()> 
     Ok(())
 }
 
-pub async fn handle_scenario_command(
-    command: &ScenarioCommand,
-    params: ObjectParams,
-) -> anyhow::Result<()> {
+pub fn handle_scenario_command(command: &ScenarioCommand, params: Value) -> anyhow::Result<()> {
     match command {
         ScenarioCommand::Available {} => {
-            handle_available(params)
-                .await
-                .context("List available scenarios")?;
+            handle_available(params).context("List available scenarios")?;
         }
         ScenarioCommand::Run {
             scenario,
             additional_args,
         } => {
-            handle_run(params, scenario, additional_args)
-                .await
-                .context("Run scenario from remote")?;
+            handle_run(params, scenario, additional_args).context("Run scenario from remote")?;
         }
 
         ScenarioCommand::RunFile {
@@ -165,18 +145,13 @@ pub async fn handle_scenario_command(
             additional_args,
         } => {
             handle_run_file(params, scenario_path, additional_args)
-                .await
                 .context("Run scenario file from path")?;
         }
         ScenarioCommand::Active {} => {
-            handle_active(params)
-                .await
-                .context("List active scenarios")?;
+            handle_active(params).context("List active scenarios")?;
         }
         ScenarioCommand::Stop { pid } => {
-            handle_stop(params, pid)
-                .await
-                .context(format!("Stop running scenario with pid: {}", pid))?;
+            handle_stop(params, pid).context(format!("Stop running scenario with pid: {}", pid))?;
         }
     };
     Ok(())
