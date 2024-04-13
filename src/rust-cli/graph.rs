@@ -96,7 +96,7 @@ fn handle_bitcoin_conf(bitcoin_conf: Option<&Path>) -> String {
 }
 
 fn convert_to_graphml(graph: &petgraph::graph::DiGraph<(), ()>) -> anyhow::Result<Vec<u8>> {
-    let graphml = GraphMl::new(graph).pretty_print(true);
+    let graphml = petgraph_graphml::GraphMl::new(graph).pretty_print(true);
     let mut buf = Vec::new();
     graphml
         .to_writer(&mut buf)
