@@ -12,14 +12,12 @@
 
 #![allow(clippy::borrow_as_ptr)]
 
+use std::collections::{BTreeMap, HashMap};
 use std::convert::From;
 use std::iter::FromIterator;
 use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
 use std::str::ParseBoolError;
-
-use hashbrown::HashMap;
-use indexmap::IndexMap;
 
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::name::QName;
@@ -29,11 +27,11 @@ use quick_xml::Reader;
 use petgraph::algo;
 use petgraph::{Directed, Undirected};
 
-use pyo3::exceptions::PyException;
-use pyo3::prelude::*;
-use pyo3::PyErr;
+// use pyo3::exceptions::PyException;
+// use pyo3::prelude::*;
+// use pyo3::PyErr;
 
-use crate::{digraph::PyDiGraph, graph::PyGraph, StablePyGraph};
+// use crate::{digraph::PyDiGraph, graph::PyGraph, StablePyGraph};
 
 pub enum Error {
     Xml(String),
@@ -71,18 +69,18 @@ impl From<ParseFloatError> for Error {
     }
 }
 
-impl From<Error> for PyErr {
-    #[inline]
-    fn from(error: Error) -> PyErr {
-        match error {
-            Error::Xml(msg)
-            | Error::ParseValue(msg)
-            | Error::NotFound(msg)
-            | Error::UnSupported(msg)
-            | Error::InvalidDoc(msg) => PyException::new_err(msg),
-        }
-    }
-}
+// impl From<Error> for PyErr {
+//     #[inline]
+//     fn from(error: Error) -> PyErr {
+//         match error {
+//             Error::Xml(msg)
+//             | Error::ParseValue(msg)
+//             | Error::NotFound(msg)
+//             | Error::UnSupported(msg)
+//             | Error::InvalidDoc(msg) => PyException::new_err(msg),
+//         }
+//     }
+// }
 
 fn xml_attribute<'a>(element: &'a BytesStart<'a>, key: &[u8]) -> Result<String, Error> {
     element
@@ -135,19 +133,19 @@ enum Value {
     UnDefined,
 }
 
-impl IntoPy<PyObject> for Value {
-    fn into_py(self, py: Python) -> PyObject {
-        match self {
-            Value::Boolean(val) => val.into_py(py),
-            Value::Int(val) => val.into_py(py),
-            Value::Float(val) => val.into_py(py),
-            Value::Double(val) => val.into_py(py),
-            Value::String(val) => val.into_py(py),
-            Value::Long(val) => val.into_py(py),
-            Value::UnDefined => py.None(),
-        }
-    }
-}
+// impl IntoPy<PyObject> for Value {
+//     fn into_py(self, py: Python) -> PyObject {
+//         match self {
+//             Value::Boolean(val) => val.into_py(py),
+//             Value::Int(val) => val.into_py(py),
+//             Value::Float(val) => val.into_py(py),
+//             Value::Double(val) => val.into_py(py),
+//             Value::String(val) => val.into_py(py),
+//             Value::Long(val) => val.into_py(py),
+//             Value::UnDefined => py.None(),
+//         }
+//     }
+// }
 
 struct Key {
     name: String,
@@ -190,7 +188,7 @@ enum Direction {
     UnDirected,
 }
 
-struct Graph {
+pub struct Graph {
     dir: Direction,
     nodes: Vec<Node>,
     edges: Vec<Edge>,
@@ -259,73 +257,73 @@ impl Graph {
     }
 }
 
-impl IntoPy<PyObject> for Graph {
-    fn into_py(self, py: Python) -> PyObject {
-        macro_rules! make_graph {
-            ($graph:ident) => {
-                let mut mapping = HashMap::with_capacity(self.nodes.len());
-                for mut node in self.nodes {
-                    // Write the node id from GraphML doc into the node data payload
-                    // since in rustworkx nodes are indexed by an unsigned integer and
-                    // not by a hashable String.
-                    node.data
-                        .insert(String::from("id"), Value::String(node.id.clone()));
-                    mapping.insert(node.id, $graph.add_node(node.data.into_py(py)));
-                }
+// impl IntoPy<PyObject> for Graph {
+//     fn into_py(self, py: Python) -> PyObject {
+//         macro_rules! make_graph {
+//             ($graph:ident) => {
+//                 let mut mapping = HashMap::with_capacity(self.nodes.len());
+//                 for mut node in self.nodes {
+//                     // Write the node id from GraphML doc into the node data payload
+//                     // since in rustworkx nodes are indexed by an unsigned integer and
+//                     // not by a hashable String.
+//                     node.data
+//                         .insert(String::from("id"), Value::String(node.id.clone()));
+//                     mapping.insert(node.id, $graph.add_node(node.data.into_py(py)));
+//                 }
 
-                for mut edge in self.edges {
-                    match (mapping.get(&edge.source), mapping.get(&edge.target)) {
-                        (Some(&source), Some(&target)) => {
-                            // Write the edge id from GraphML doc into the edge data payload
-                            // since in rustworkx edges are indexed by an unsigned integer and
-                            // not by a hashable String.
-                            if let Some(id) = edge.id {
-                                edge.data.insert(String::from("id"), Value::String(id));
-                            }
-                            $graph.add_edge(source, target, edge.data.into_py(py));
-                        }
-                        _ => {
-                            // We skip an edge if one of its endpoints was not added earlier in the graph.
-                        }
-                    }
-                }
-            };
-        }
+//                 for mut edge in self.edges {
+//                     match (mapping.get(&edge.source), mapping.get(&edge.target)) {
+//                         (Some(&source), Some(&target)) => {
+//                             // Write the edge id from GraphML doc into the edge data payload
+//                             // since in rustworkx edges are indexed by an unsigned integer and
+//                             // not by a hashable String.
+//                             if let Some(id) = edge.id {
+//                                 edge.data.insert(String::from("id"), Value::String(id));
+//                             }
+//                             $graph.add_edge(source, target, edge.data.into_py(py));
+//                         }
+//                         _ => {
+//                             // We skip an edge if one of its endpoints was not added earlier in the graph.
+//                         }
+//                     }
+//                 }
+//             };
+//         }
 
-        match self.dir {
-            Direction::UnDirected => {
-                let mut graph =
-                    StablePyGraph::<Undirected>::with_capacity(self.nodes.len(), self.edges.len());
-                make_graph!(graph);
+//         match self.dir {
+//             Direction::UnDirected => {
+//                 let mut graph =
+//                     StablePyGraph::<Undirected>::with_capacity(self.nodes.len(), self.edges.len());
+//                 make_graph!(graph);
 
-                let out = PyGraph {
-                    graph,
-                    node_removed: false,
-                    multigraph: true,
-                    attrs: self.attributes.into_py(py),
-                };
+//                 let out = PyGraph {
+//                     graph,
+//                     node_removed: false,
+//                     multigraph: true,
+//                     attrs: self.attributes.into_py(py),
+//                 };
 
-                out.into_py(py)
-            }
-            Direction::Directed => {
-                let mut graph =
-                    StablePyGraph::<Directed>::with_capacity(self.nodes.len(), self.edges.len());
-                make_graph!(graph);
+//                 out.into_py(py)
+//             }
+//             Direction::Directed => {
+//                 let mut graph =
+//                     StablePyGraph::<Directed>::with_capacity(self.nodes.len(), self.edges.len());
+//                 make_graph!(graph);
 
-                let out = PyDiGraph {
-                    graph,
-                    cycle_state: algo::DfsSpace::default(),
-                    check_cycle: false,
-                    node_removed: false,
-                    multigraph: true,
-                    attrs: self.attributes.into_py(py),
-                };
+//                 let out = PyDiGraph {
+//                     graph,
+//                     cycle_state: algo::DfsSpace::default(),
+//                     check_cycle: false,
+//                     node_removed: false,
+//                     multigraph: true,
+//                     attrs: self.attributes.into_py(py),
+//                 };
 
-                out.into_py(py)
-            }
-        }
-    }
-}
+//                 out.into_py(py)
+//             }
+//         }
+//     }
+// }
 
 enum State {
     Start,
@@ -355,20 +353,20 @@ macro_rules! matches {
 
 struct GraphML {
     graphs: Vec<Graph>,
-    key_for_nodes: IndexMap<String, Key>,
-    key_for_edges: IndexMap<String, Key>,
-    key_for_graph: IndexMap<String, Key>,
-    key_for_all: IndexMap<String, Key>,
+    key_for_nodes: BTreeMap<String, Key>,
+    key_for_edges: BTreeMap<String, Key>,
+    key_for_graph: BTreeMap<String, Key>,
+    key_for_all: BTreeMap<String, Key>,
 }
 
 impl Default for GraphML {
     fn default() -> Self {
         Self {
             graphs: Vec::new(),
-            key_for_nodes: IndexMap::new(),
-            key_for_edges: IndexMap::new(),
-            key_for_graph: IndexMap::new(),
-            key_for_all: IndexMap::new(),
+            key_for_nodes: BTreeMap::new(),
+            key_for_edges: BTreeMap::new(),
+            key_for_graph: BTreeMap::new(),
+            key_for_all: BTreeMap::new(),
         }
     }
 }
@@ -464,14 +462,14 @@ impl GraphML {
 
     fn last_key_set_value(&mut self, val: String, domain: Domain) -> Result<(), Error> {
         let elem = match domain {
-            Domain::Node => self.key_for_nodes.last_mut(),
-            Domain::Edge => self.key_for_edges.last_mut(),
-            Domain::Graph => self.key_for_graph.last_mut(),
-            Domain::All => self.key_for_all.last_mut(),
+            Domain::Node => self.key_for_nodes.last_entry(),
+            Domain::Edge => self.key_for_edges.last_entry(),
+            Domain::Graph => self.key_for_graph.last_entry(),
+            Domain::All => self.key_for_all.last_entry(),
         };
 
-        if let Some((_, key)) = elem {
-            key.set_value(val)?;
+        if let Some(mut entry) = elem {
+            entry.get_mut().set_value(val)?
         }
 
         Ok(())
@@ -702,14 +700,24 @@ impl GraphML {
 /// :return: A list of graphs parsed from GraphML file.
 /// :rtype: list[Union[PyGraph, PyDiGraph]]
 /// :raises RuntimeError: when an error is encountered while parsing the GraphML file.
-#[pyfunction]
-#[pyo3(text_signature = "(path, /)")]
-pub fn read_graphml(py: Python, path: &str) -> PyResult<Vec<PyObject>> {
+// #[pyfunction]
+// #[pyo3(text_signature = "(path, /)")]
+// pub fn read_graphml(py: Python, path: &str) -> PyResult<Vec<PyObject>> {
+//     let graphml = GraphML::from_file(path)?;
+
+//     let mut out = Vec::new();
+//     for graph in graphml.graphs {
+//         out.push(graph.into_py(py))
+//     }
+
+//     Ok(out)
+// }
+pub fn read_graphml(path: &str) -> Result<Vec<Graph>, Error> {
     let graphml = GraphML::from_file(path)?;
 
     let mut out = Vec::new();
     for graph in graphml.graphs {
-        out.push(graph.into_py(py))
+        out.push(graph)
     }
 
     Ok(out)
