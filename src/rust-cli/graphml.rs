@@ -351,7 +351,7 @@ macro_rules! matches {
     }
 }
 
-struct GraphML {
+pub struct GraphML {
     graphs: Vec<Graph>,
     key_for_nodes: BTreeMap<String, Key>,
     key_for_edges: BTreeMap<String, Key>,
@@ -372,7 +372,7 @@ impl Default for GraphML {
 }
 
 impl GraphML {
-    fn create_graph<'a>(&mut self, element: &'a BytesStart<'a>) -> Result<(), Error> {
+    pub fn create_graph<'a>(&mut self, element: &'a BytesStart<'a>) -> Result<(), Error> {
         let dir = match xml_attribute(element, b"edgedefault")?.as_bytes() {
             b"directed" => Direction::Directed,
             b"undirected" => Direction::UnDirected,
@@ -391,7 +391,7 @@ impl GraphML {
         Ok(())
     }
 
-    fn add_node<'a>(&mut self, element: &'a BytesStart<'a>) -> Result<(), Error> {
+    pub fn add_node<'a>(&mut self, element: &'a BytesStart<'a>) -> Result<(), Error> {
         if let Some(graph) = self.graphs.last_mut() {
             graph.add_node(
                 element,
@@ -402,7 +402,7 @@ impl GraphML {
         Ok(())
     }
 
-    fn add_edge<'a>(&mut self, element: &'a BytesStart<'a>) -> Result<(), Error> {
+    pub fn add_edge<'a>(&mut self, element: &'a BytesStart<'a>) -> Result<(), Error> {
         if let Some(graph) = self.graphs.last_mut() {
             graph.add_edge(
                 element,
@@ -413,7 +413,7 @@ impl GraphML {
         Ok(())
     }
 
-    fn add_graphml_key<'a>(&mut self, element: &'a BytesStart<'a>) -> Result<Domain, Error> {
+    pub fn add_graphml_key<'a>(&mut self, element: &'a BytesStart<'a>) -> Result<Domain, Error> {
         let id = xml_attribute(element, b"id")?;
         let ty = match xml_attribute(element, b"attr.type")?.as_bytes() {
             b"boolean" => Type::Boolean,
@@ -460,7 +460,7 @@ impl GraphML {
         }
     }
 
-    fn last_key_set_value(&mut self, val: String, domain: Domain) -> Result<(), Error> {
+    pub fn last_key_set_value(&mut self, val: String, domain: Domain) -> Result<(), Error> {
         let elem = match domain {
             Domain::Node => self.key_for_nodes.last_entry(),
             Domain::Edge => self.key_for_edges.last_entry(),
@@ -475,7 +475,7 @@ impl GraphML {
         Ok(())
     }
 
-    fn last_node_set_data(&mut self, key: &str, val: String) -> Result<(), Error> {
+    pub fn last_node_set_data(&mut self, key: &str, val: String) -> Result<(), Error> {
         let key = match self.key_for_all.get(key) {
             Some(key) => key,
             None => self
@@ -491,7 +491,7 @@ impl GraphML {
         Ok(())
     }
 
-    fn last_edge_set_data(&mut self, key: &str, val: String) -> Result<(), Error> {
+    pub fn last_edge_set_data(&mut self, key: &str, val: String) -> Result<(), Error> {
         let key = match self.key_for_all.get(key) {
             Some(key) => key,
             None => self
@@ -507,7 +507,7 @@ impl GraphML {
         Ok(())
     }
 
-    fn last_graph_set_attribute(&mut self, key: &str, val: String) -> Result<(), Error> {
+    pub fn last_graph_set_attribute(&mut self, key: &str, val: String) -> Result<(), Error> {
         let key = match self.key_for_all.get(key) {
             Some(key) => key,
             None => self
@@ -529,7 +529,7 @@ impl GraphML {
     /// accept only valid GraphML syntax (e.g a `<data>` element should
     /// be nested inside a `<node>` element) where the internal state changes
     /// after handling each quick_xml event.
-    fn from_file<P: AsRef<Path>>(path: P) -> Result<GraphML, Error> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<GraphML, Error> {
         let mut graphml = GraphML::default();
 
         let mut buf = Vec::new();

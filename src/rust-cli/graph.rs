@@ -5,12 +5,12 @@ use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
 
+use crate::graphml::GraphML;
 use crate::util::{dump_bitcoin_conf, parse_bitcoin_conf};
 use anyhow::Context;
 use clap::Subcommand;
 use jsonschema::JSONSchema;
 use petgraph::graph::{DiGraph, NodeIndex};
-use petgraph_graphml::GraphMl;
 use quickxml_to_serde::{xml_string_to_json, Config};
 use xmltree::{Element, EmitterConfig, XMLNode};
 
