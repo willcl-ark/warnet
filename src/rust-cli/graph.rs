@@ -1,13 +1,14 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use serde_json::json;
 use std::borrow::Cow;
-use std::fs::File;
+use std::fs::{read_to_string, File};
 use std::io::{BufReader, Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use crate::graphml::GraphML;
 use crate::util::{dump_bitcoin_conf, parse_bitcoin_conf};
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use clap::Subcommand;
 use jsonschema::JSONSchema;
 use petgraph::graph::{DiGraph, NodeIndex};
@@ -173,36 +174,10 @@ fn add_custom_attributes(
 }
 
 fn validate_schema(graph: &PathBuf) -> anyhow::Result<()> {
-    let f =
-        File::open("src/schema/graph_schema.json").context("Read schema file from source dir")?;
-    let reader = BufReader::new(f);
-    let schema: serde_json::Value =
-        serde_json::from_reader(reader).context("Read schema into serde_json Value")?;
-    // TODO: this hack needing a static lifetime seems wrong. Try and fix it
-    let schema_static: &'static serde_json::Value = Box::leak(Box::new(schema));
-    let compiled_schema =
-        JSONSchema::compile(schema_static).context("compile schema into JSONSchema")?;
-
-    // Parse graph into serde_json::Value
-    let f = File::open(graph).context("Read xml graph from disk")?;
-    let mut reader = BufReader::new(f);
-    let mut xml_string = String::new();
-    reader.read_to_string(&mut xml_string)?;
-    let conf = Config::new_with_defaults();
-    let json = xml_string_to_json(xml_string, &conf).context("Convert xml string to JSON")?;
-    println!("{}", json);
-
-    // Validate schema
-    // TODO: THIS IS NOT WORKING
-    // We need to iterate over nodes and edges and call validate on each one, I think?
-    let result = compiled_schema.validate(&json);
-    if let Err(errors) = result {
-        for error in errors {
-            println!("Validation error: {}", error);
-            println!("Instance path: {}", error.instance_path);
-        }
-    }
-    println!("Schema validated successfully!");
+    // Our graphml files should include a "key" section describing kinds of values available in each
+    // node. The parsing logic in GraphML does similar validation work as the existing python
+    // validation approach.
+    let _ = GraphML::from_file(graph).context("Could not load and parse graphml file")?;
 
     Ok(())
 }
@@ -267,4 +242,92 @@ pub async fn handle_graph_command(command: &GraphCommand) -> anyhow::Result<()> 
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{io::Write, str::FromStr};
+
+    use super::*;
+
+    static GRAPHML_FILE: &str = r#"<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="image" for="node" attr.name="image" attr.type="string" />
+  <key id="collect_logs" for="node" attr.name="collect_logs" attr.type="boolean" />
+  <key id="exporter" for="node" attr.name="exporter" attr.type="boolean" />
+  <key id="build_args" for="node" attr.name="build_args" attr.type="string" />
+  <key id="tc_netem" for="node" attr.name="tc_netem" attr.type="string" />
+  <key id="bitcoin_config" for="node" attr.name="bitcoin_config" attr.type="string" />
+  <key id="version" for="node" attr.name="version" attr.type="string" />
+  <graph edgedefault="directed">
+    <node id="0">
+      <data key="version">26.0</data>
+      <data key="bitcoin_config" />
+      <data key="tc_netem"></data>
+      <data key="build_args" />
+      <data key="exporter">False</data>
+      <data key="collect_logs">False</data>
+    </node>
+    <node id="1">
+      <data key="image">bitcoindevproject/bitcoin:26.0</data>
+      <data key="bitcoin_config" />
+      <data key="tc_netem" />
+      <data key="build_args" />
+      <data key="exporter">False</data>
+      <data key="collect_logs">False</data>
+    </node>
+    <node id="2">
+      <data key="version">26.0</data>
+      <data key="bitcoin_config" />
+      <data key="tc_netem" />
+      <data key="build_args" />
+      <data key="exporter">False</data>
+      <data key="collect_logs">False</data>
+    </node>
+    <node id="3">
+      <data key="version">26.0</data>
+      <data key="bitcoin_config" />
+      <data key="tc_netem" />
+      <data key="build_args" />
+      <data key="exporter">False</data>
+      <data key="collect_logs">False</data>
+    </node>
+    <node id="4">
+      <data key="version">26.0</data>
+      <data key="bitcoin_config" />
+      <data key="tc_netem" />
+      <data key="build_args" />
+      <data key="exporter">False</data>
+      <data key="collect_logs">False</data>
+    </node>
+    <edge source="0" target="1" id="0" />
+    <edge source="0" target="2" id="0" />
+    <edge source="0" target="3" id="0" />
+    <edge source="1" target="2" id="0" />
+    <edge source="1" target="3" id="0" />
+    <edge source="1" target="4" id="0" />
+    <edge source="2" target="3" id="0" />
+    <edge source="2" target="4" id="0" />
+    <edge source="3" target="4" id="0" />
+    <edge source="4" target="0" id="0" />
+  </graph>
+</graphml>
+"#;
+
+    #[test]
+    fn validate_graphml() {
+        let path = "temp_graphml_file_for_validate_graphml_test.xml";
+        let mut file = std::fs::File::create(path).unwrap();
+        file.write_all(GRAPHML_FILE.as_bytes()).unwrap();
+        let schema_is_valid = match validate_schema(&PathBuf::from_str(path).unwrap()) {
+            Ok(_) => true,
+            Err(e) => {
+                println!("{:?}", e);
+                false
+            }
+        };
+        assert!(schema_is_valid);
+        std::fs::remove_file(path).unwrap();
+    }
 }

@@ -10,10 +10,14 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// Originally from:
+// https://github.com/Qiskit/rustworkx/blob/d5521e3ac8f1332c2caf0b172fc24b19a9352699/src/graphml.rs#L12
+
 #![allow(clippy::borrow_as_ptr)]
 
 use std::collections::{BTreeMap, HashMap};
 use std::convert::From;
+use std::fmt::Display;
 use std::iter::FromIterator;
 use std::num::{ParseFloatError, ParseIntError};
 use std::path::Path;
@@ -33,12 +37,25 @@ use petgraph::{Directed, Undirected};
 
 // use crate::{digraph::PyDiGraph, graph::PyGraph, StablePyGraph};
 
+#[derive(Debug)]
 pub enum Error {
     Xml(String),
     ParseValue(String),
     NotFound(String),
     UnSupported(String),
     InvalidDoc(String),
+}
+impl std::error::Error for Error {}
+impl Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Xml(_) => write!(f, "XML Error"),
+            Error::ParseValue(value) => write!(f, "ParseValue Error: {value}"),
+            Error::NotFound(_) => write!(f, "NotFound Error"),
+            Error::UnSupported(_) => write!(f, "UnSupported Error"),
+            Error::InvalidDoc(_) => write!(f, "InvalidDoc Error"),
+        }
+    }
 }
 
 impl From<XmlError> for Error {
@@ -156,7 +173,10 @@ struct Key {
 impl Key {
     fn parse(&self, val: String) -> Result<Value, Error> {
         Ok(match self.ty {
-            Type::Boolean => Value::Boolean(val.parse()?),
+            Type::Boolean => {
+                let val = val.to_lowercase();
+                Value::Boolean(val.parse()?)
+            }
             Type::Int => Value::Int(val.parse()?),
             Type::Float => Value::Float(val.parse()?),
             Type::Double => Value::Double(val.parse()?),
@@ -325,6 +345,7 @@ impl Graph {
 //     }
 // }
 
+#[derive(Debug)]
 enum State {
     Start,
     Graph,
@@ -669,7 +690,6 @@ impl GraphML {
                 }
                 _ => {}
             }
-
             buf.clear();
         }
 
