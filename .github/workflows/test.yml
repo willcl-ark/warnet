@@ -29,7 +29,7 @@ jobs:
         with:
           file: src/templates/rpc/Dockerfile_rpc
           context: .
-          tags: bitcoindevproject/warnet:ci
+          tags: bitcoindevproject/warnet-rpc:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
           outputs: type=docker,dest=/tmp/warnet.tar
@@ -44,19 +44,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # backend: [compose, k8s]
-        backend: [compose]
+        backend: [compose, k8s]
         test: [scenarios_test.py, rpc_test.py, graph_test.py, ln_test.py]
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: warnet
-          path: /tmp
-      - name: Load image artifact
-        run: |
-          docker load --input /tmp/warnet.tar
-          docker image ls -a
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || 'main' }}
@@ -67,12 +57,20 @@ jobs:
       - if: matrix.backend == 'k8s'
         uses: medyagh/setup-minikube@master
       - if: matrix.backend == 'k8s'
+        name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: warnet
+          path: /tmp
+      - if: matrix.backend == 'k8s'
+        name: Load image artifact
         run: |
-          tagname=$(cat tagname.txt)
-          echo "Using tagname: $tagname"
+          eval $(minikube docker-env)
+          docker load --input /tmp/warnet.tar
+          docker image ls -a
           pip install --upgrade pip
           pip install -e .
-          sed -i "s|bitcoindevproject/warnet-rpc:dev|$tagname|g" src/templates/rpc/warnet-rpc-statefulset-dev.yaml
+          sed -i "s|bitcoindevproject/warnet-rpc:dev|localhost:5000/bitcoindevproject/warnet-rpc:ci|g" src/templates/rpc/warnet-rpc-statefulset-dev.yaml
           just start
           kubectl wait --for=condition=Ready --timeout=2m pod rpc-0
           kubectl port-forward svc/rpc 9276:9276 &
