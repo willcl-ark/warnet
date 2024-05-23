@@ -53,9 +53,10 @@ jobs:
       - if: matrix.backend == 'compose'
         uses: ./.github/actions
       - if: matrix.backend == 'k8s'
-        uses: extractions/setup-just@v1
-      - if: matrix.backend == 'k8s'
         uses: medyagh/setup-minikube@master
+        with:
+          insecure-registry: 'localhost:5000,10.0.0.0/24'
+          mount-path: ${{ github.workspace }}:/mnt/src
       - if: matrix.backend == 'k8s'
         name: Download artifact
         uses: actions/download-artifact@v4
@@ -63,18 +64,34 @@ jobs:
           name: warnet
           path: /tmp
       - if: matrix.backend == 'k8s'
-        name: Load image artifact
+        name: Setup k8s
         run: |
-          eval $(minikube docker-env)
+          eval $(minikube -p minikube docker-env)
           docker load --input /tmp/warnet.tar
           docker image ls -a
           pip install --upgrade pip
           pip install -e .
+
+          echo Patching warnet-rpc-statefulset-dev to use local registry
           sed -i "s|bitcoindevproject/warnet-rpc:dev|localhost:5000/bitcoindevproject/warnet-rpc:ci|g" src/templates/rpc/warnet-rpc-statefulset-dev.yaml
-          just start
+          cat src/templates/rpc/warnet-rpc-statefulset-dev.yaml
+
+          echo Setting up k8s
+          kubectl apply -f src/templates/rpc/namespace.yaml
+          kubectl apply -f src/templates/rpc/rbac-config.yaml
+          kubectl apply -f src/templates/rpc/warnet-rpc-service.yaml
+          kubectl apply -f src/templates/rpc/warnet-rpc-statefulset-dev.yaml
+          kubectl config set-context --current --namespace=warnet
+
+          echo Waiting for rpc-0 to come online
+          until kubectl get pod rpc-0 --namespace=warnet; do
+             echo "Waiting for server to find pod rpc-0..."
+             sleep 4
+          done
           kubectl wait --for=condition=Ready --timeout=2m pod rpc-0
           kubectl port-forward svc/rpc 9276:9276 &
-      - run: ./test/${{matrix.test}} ${{matrix.backend}}
+      - name: Run tests
+        run: ./test/${{matrix.test}} ${{matrix.backend}}
   # build:
   #   needs: [deploy, test]
   #   runs-on: ubuntu-latest
