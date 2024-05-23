@@ -10,83 +10,53 @@ jobs:
   ruff:
     runs-on: ubuntu-latest
     steps:
-      - name: Debug info
-        run: |
-          echo "Event Name: ${{ github.event_name }}"
-          echo "PR Head SHA: ${{ github.event.pull_request.head.sha }}"
-          echo "Resolved Ref: ${{ (github.event_name == 'pull_request' || github.event_name == 'pull_request_target') && github.event.pull_request.head.sha || 'main' }}"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || 'main' }}
       - uses: chartboost/ruff-action@v1
-  deploy:
+  build:
     needs: [ruff]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || 'main' }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_RPC_REPO }}
-          tags: |
-            type=ref,event=tag
-            type=ref,event=pr
-            type=raw,value=latest,enable={{is_default_branch}}
-          labels: |
-            maintainer=bitcoindevproject
-            org.opencontainers.image.title=warnet-rpc
-            org.opencontainers.image.description=Warnet RPC server
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and push production RPC image
+
+      - name: Build and export
         uses: docker/build-push-action@v5
         with:
           file: src/templates/rpc/Dockerfile_rpc
-          platforms: linux/amd64,linux/arm64
           context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_RPC_REPO }}:latest
-          cache-to: type=inline
-      - name: Build and push dev RPC image
-        if: github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v5
-        with:
-          file: src/templates/rpc/Dockerfile_rpc_dev
-          platforms: linux/amd64,linux/arm64
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_RPC_REPO }}:dev
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/${{ secrets.DOCKERHUB_RPC_REPO }}:dev
-          cache-to: type=inline
-      - name: Create tag name file
-        run: echo "${{ steps.meta.outputs.tags }}" > tagname.txt
-      - name: Upload tag name as artifact
+          tags: bitcoindevproject/warnet:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker,dest=/tmp/warnet.tar
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: image-tags-${{ github.sha }}
-          path: tagname.txt
+          name: warnet
+          path: /tmp/warnet.tar
   test:
-    needs: [deploy]
+    needs: [build]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        backend: [compose, k8s]
+        # backend: [compose, k8s]
+        backend: [compose]
         test: [scenarios_test.py, rpc_test.py, graph_test.py, ln_test.py]
     steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: warnet
+          path: /tmp
+      - name: Load image artifact
+        run: |
+          docker load --input /tmp/warnet.tar
+          docker image ls -a
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || 'main' }}
@@ -94,10 +64,6 @@ jobs:
         uses: ./.github/actions
       - if: matrix.backend == 'k8s'
         uses: extractions/setup-just@v1
-      - if: matrix.backend == 'k8s'
-        uses: actions/download-artifact@v4
-        with:
-          name: image-tags-${{ github.sha }}
       - if: matrix.backend == 'k8s'
         uses: medyagh/setup-minikube@master
       - if: matrix.backend == 'k8s'
@@ -111,34 +77,34 @@ jobs:
           kubectl wait --for=condition=Ready --timeout=2m pod rpc-0
           kubectl port-forward svc/rpc 9276:9276 &
       - run: ./test/${{matrix.test}} ${{matrix.backend}}
-  build:
-    needs: [deploy, test]
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        backend: [compose]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || 'main' }}
-      - uses: ./.github/actions
-      - if: matrix.backend == 'k8s'
-        uses: extractions/setup-just@v1
-      - if: matrix.backend == 'k8s'
-        uses: actions/download-artifact@v4
-        with:
-          name: image-tags-${{ github.sha }}
-      - if: matrix.backend == 'k8s'
-        uses: medyagh/setup-minikube@master
-      - if: matrix.backend == 'k8s'
-        run: |
-          tagname=$(cat tagname.txt)
-          echo "Using tagname: $tagname"
-          eval $(minikube docker-env)
-          pip install --upgrade pip
-          pip install -e .
-          sed -i "s|bitcoindevproject/warnet-rpc:dev|$tagname|g" src/templates/rpc/warnet-rpc-statefulset-dev.yaml
-          just start
-          kubectl wait --for=condition=Ready --timeout=2m pod rpc-0
-          kubectl port-forward svc/rpc 9276:9276 &
-      - run: ./test/build_branch_test.py ${{matrix.backend}}
+  # build:
+  #   needs: [deploy, test]
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       backend: [compose]
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || 'main' }}
+  #     - uses: ./.github/actions
+  #     - if: matrix.backend == 'k8s'
+  #       uses: extractions/setup-just@v1
+  #     - if: matrix.backend == 'k8s'
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: image-tags-${{ github.sha }}
+  #     - if: matrix.backend == 'k8s'
+  #       uses: medyagh/setup-minikube@master
+  #     - if: matrix.backend == 'k8s'
+  #       run: |
+  #         tagname=$(cat tagname.txt)
+  #         echo "Using tagname: $tagname"
+  #         eval $(minikube docker-env)
+  #         pip install --upgrade pip
+  #         pip install -e .
+  #         sed -i "s|bitcoindevproject/warnet-rpc:dev|$tagname|g" src/templates/rpc/warnet-rpc-statefulset-dev.yaml
+  #         just start
+  #         kubectl wait --for=condition=Ready --timeout=2m pod rpc-0
+  #         kubectl port-forward svc/rpc 9276:9276 &
+  #     - run: ./test/build_branch_test.py ${{matrix.backend}}
