@@ -83,6 +83,11 @@ jobs:
           kubectl apply -f src/templates/rpc/warnet-rpc-statefulset-dev.yaml
           kubectl config set-context --current --namespace=warnet
 
+          sleep 60
+
+          kubectl describe pod rpc-0
+          kubectl logs rpc-0
+
           echo Waiting for rpc-0 to come online
           until kubectl get pod rpc-0 --namespace=warnet; do
              echo "Waiting for server to find pod rpc-0..."
