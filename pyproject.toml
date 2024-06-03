@@ -18,9 +18,6 @@ dynamic = ["version", "dependencies"]
 warnet = "warnet.server:run_server"
 warcli = "cli.main:cli"
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-
 [tool.setuptools.packages.find]
 where = ["src"]
 

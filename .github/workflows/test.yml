@@ -46,6 +46,7 @@ jobs:
         test: [scenarios_test.py, rpc_test.py, graph_test.py, ln_test.py, get_service_ip_test.py]
     steps:
       - uses: actions/checkout@v4
+      - uses: hynek/setup-cached-uv@v1
       - if: matrix.backend == 'compose'
         uses: ./.github/actions/compose
       - if: matrix.backend == 'k8s'
@@ -54,7 +55,11 @@ jobs:
         run: |
           kubectl port-forward svc/rpc 9276:9276 &
       - name: Run tests
-        run: ./test/${{matrix.test}} ${{matrix.backend}}
+        run: |
+          uv venv
+          uv pip install -r requirements.txt
+          uv pip install .
+          uv run ./test/${{matrix.test}} ${{matrix.backend}}
   build-test:
     needs: [build-image]
     runs-on: ubuntu-latest
