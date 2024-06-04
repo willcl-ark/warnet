@@ -14,7 +14,8 @@ WORKDIR /root/warnet
 
 # Get better caching by installing before copying code
 COPY requirements.txt .
-RUN uv pip install --system --no-cache -r requirements.txt
+# Require hashes on requirements for secure installs
+RUN uv pip install --require-hashes --no-deps --system --no-cache -r requirements.txt
 
 # Copy the source directory contents into the container
 COPY . /root/warnet

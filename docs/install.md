@@ -79,5 +79,6 @@ source .venv/bin/activate
 
 ```bash
 pip install --upgrade pip
+pip install --require-hashes --no-deps --system --no-cache -r requirements.txt
 pip install -e .
 ```
