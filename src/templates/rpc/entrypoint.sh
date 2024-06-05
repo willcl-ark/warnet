@@ -31,7 +31,7 @@ done
 if check_setup_toml; then
     echo "Installing package from ${SOURCE_DIR}..."
     cd ${SOURCE_DIR}
-    uv pip install --system --no-cache -e .
+    uv pip install --system -e .[server]
 fi
 
 # Execute the CMD from the Dockerfile

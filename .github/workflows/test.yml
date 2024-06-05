@@ -57,13 +57,16 @@ jobs:
       - name: Run tests
         run: |
           uv venv
-          uv pip install -r requirements.txt
-          uv pip install .
+          uv pip install .[server]
           uv run ./test/${{matrix.test}} ${{matrix.backend}}
   build-test:
     needs: [build-image]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: hynek/setup-cached-uv@v1
       - uses: ./.github/actions/compose
-      - run: ./test/build_branch_test.py compose
+      - run: |
+          uv venv
+          uv pip install .[server]
+          uv run ./test/build_branch_test.py compose
