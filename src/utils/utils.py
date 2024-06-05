@@ -12,27 +12,10 @@ import time
 from io import BytesIO
 from pathlib import Path
 
-import networkx as nx
-from jsonschema import validate
-from schema import SCHEMA
 from test_framework.messages import ser_uint256
 from test_framework.p2p import MESSAGEMAP
 
 logger = logging.getLogger("utils")
-
-
-SUPPORTED_TAGS = [
-    "26.0",
-    "25.1",
-    "24.2",
-    "23.2",
-    "22.2",
-]
-DEFAULT_TAG = SUPPORTED_TAGS[0]
-WEIGHTED_TAGS = [
-    tag for index, tag in enumerate(reversed(SUPPORTED_TAGS)) for _ in range(index + 1)
-]
-GRAPH_SCHEMA_PATH = SCHEMA / "graph_schema.json"
 
 
 class NonErrorFilter(logging.Filter):
@@ -192,69 +175,6 @@ def sanitize_tc_netem_command(command: str) -> bool:
     return True
 
 
-def parse_bitcoin_conf(file_content):
-    """
-    Custom parser for INI-style bitcoin.conf
-
-    Args:
-    - file_content (str): The content of the INI-style file.
-
-    Returns:
-    - dict: A dictionary representation of the file content.
-            Key-value pairs are stored as tuples so one key may have
-            multiple values. Sections are represented as arrays of these tuples.
-    """
-    current_section = None
-    result = {current_section: []}
-
-    for line in file_content.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-
-        if line.startswith("[") and line.endswith("]"):
-            current_section = line[1:-1]
-            result[current_section] = []
-        elif "=" in line:
-            key, value = line.split("=", 1)
-            result[current_section].append((key.strip(), value.strip()))
-
-    return result
-
-
-def dump_bitcoin_conf(conf_dict, for_graph=False):
-    """
-    Converts a dictionary representation of bitcoin.conf content back to INI-style string.
-
-    Args:
-    - conf_dict (dict): A dictionary representation of the file content.
-
-    Returns:
-    - str: The INI-style string representation of the input dictionary.
-    """
-    result = []
-
-    # Print global section at the top first
-    values = conf_dict[None]
-    for sub_key, sub_value in values:
-        result.append(f"{sub_key}={sub_value}")
-
-    # Then print any named subsections
-    for section, values in conf_dict.items():
-        if section is not None:
-            result.append(f"\n[{section}]")
-        else:
-            continue
-        for sub_key, sub_value in values:
-            result.append(f"{sub_key}={sub_value}")
-
-    if for_graph:
-        return ",".join(result)
-
-    # Terminate file with newline
-    return "\n".join(result) + "\n"
-
-
 def to_jsonable(obj):
     HASH_INTS = [
         "blockhash",
@@ -387,105 +307,6 @@ def set_execute_permission(file_path):
     os.chmod(file_path, current_permissions | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def create_cycle_graph(n: int, version: str, bitcoin_conf: str | None, random_version: bool):
-    try:
-        # Use nx.MultiDiGraph() so we get directed edges (source->target)
-        # and still allow parallel edges (L1 p2p connections + LN channels)
-        graph = nx.generators.cycle_graph(n, nx.MultiDiGraph())
-    except TypeError as e:
-        msg = f"Failed to create graph: {e}"
-        logger.error(msg)
-        return msg
-
-    # Graph is a simply cycle graph with all nodes connected in a loop, including both ends.
-    # Ensure each node has at least 8 outbound connections by making 7 more outbound connections
-    for src_node in graph.nodes():
-        logger.debug(f"Creating additional connections for node {src_node}")
-        for _ in range(8):
-            # Choose a random node to connect to
-            # Make sure it's not the same node and they aren't already connected in either direction
-            potential_nodes = [
-                dst_node
-                for dst_node in range(n)
-                if dst_node != src_node
-                and not graph.has_edge(dst_node, src_node)
-                and not graph.has_edge(src_node, dst_node)
-            ]
-            if potential_nodes:
-                chosen_node = random.choice(potential_nodes)
-                graph.add_edge(src_node, chosen_node)
-                logger.debug(f"Added edge: {src_node}:{chosen_node}")
-        logger.debug(f"Node {src_node} edges: {graph.edges(src_node)}")
-
-    # parse and process conf file
-    conf_contents = ""
-    if bitcoin_conf is not None:
-        conf = Path(bitcoin_conf)
-        if conf.is_file():
-            with open(conf) as f:
-                # parse INI style conf then dump using for_graph
-                conf_dict = parse_bitcoin_conf(f.read())
-                conf_contents = dump_bitcoin_conf(conf_dict, for_graph=True)
-
-    # populate our custom fields
-    for i, node in enumerate(graph.nodes()):
-        if random_version:
-            graph.nodes[node]["version"] = random.choice(WEIGHTED_TAGS)
-        else:
-            # One node demoing the image tag
-            if i == 1:
-                graph.nodes[node]["image"] = f"bitcoindevproject/bitcoin:{version}"
-            else:
-                graph.nodes[node]["version"] = version
-        graph.nodes[node]["bitcoin_config"] = conf_contents
-        graph.nodes[node]["tc_netem"] = ""
-        graph.nodes[node]["build_args"] = ""
-        graph.nodes[node]["exporter"] = False
-        graph.nodes[node]["collect_logs"] = False
-
-    convert_unsupported_attributes(graph)
-    return graph
-
-
-def convert_unsupported_attributes(graph: nx.Graph):
-    # Sometimes networkx complains about invalid types when writing the graph
-    # (it just generated itself!). Try to convert them here just in case.
-    for _, node_data in graph.nodes(data=True):
-        for key, value in node_data.items():
-            if isinstance(value, set):
-                node_data[key] = list(value)
-            elif isinstance(value, int | float | str):
-                continue
-            else:
-                node_data[key] = str(value)
-
-    for _, _, edge_data in graph.edges(data=True):
-        for key, value in edge_data.items():
-            if isinstance(value, set):
-                edge_data[key] = list(value)
-            elif isinstance(value, int | float | str):
-                continue
-            else:
-                edge_data[key] = str(value)
-
-
-def load_schema():
-    with open(GRAPH_SCHEMA_PATH) as schema_file:
-        return json.load(schema_file)
-
-
-def validate_graph_schema(graph: nx.Graph):
-    """
-    Validate a networkx.Graph against the node schema
-    """
-    graph_schema = load_schema()
-    validate(instance=graph.graph, schema=graph_schema["graph"])
-    for n in list(graph.nodes):
-        validate(instance=graph.nodes[n], schema=graph_schema["node"])
-    for e in list(graph.edges):
-        validate(instance=graph.edges[e], schema=graph_schema["edge"])
-
-
 def policy_match(pol1, pol2):
     return (
         max(int(pol1["time_lock_delta"]), 18) == max(int(pol2["time_lock_delta"]), 18)
@@ -500,9 +321,13 @@ def policy_match(pol1, pol2):
 def channel_match(ch1, ch2, allow_flip=False):
     if ch1["capacity"] != ch2["capacity"]:
         return False
-    if policy_match(ch1["node1_policy"], ch2["node1_policy"]) and policy_match(ch1["node2_policy"], ch2["node2_policy"]):
+    if policy_match(ch1["node1_policy"], ch2["node1_policy"]) and policy_match(
+        ch1["node2_policy"], ch2["node2_policy"]
+    ):
         return True
     if not allow_flip:
         return False
     else:
-        return policy_match(ch1["node1_policy"], ch2["node2_policy"]) and policy_match(ch1["node2_policy"], ch2["node1_policy"])
+        return policy_match(ch1["node1_policy"], ch2["node2_policy"]) and policy_match(
+            ch1["node2_policy"], ch2["node1_policy"]
+        )

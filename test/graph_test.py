@@ -8,7 +8,8 @@ from pathlib import Path
 
 import requests
 from test_base import TestBase
-from warnet.utils import DEFAULT_TAG, channel_match
+from utils import channel_match
+from warnet.tags import DEFAULT_TAG
 
 graph_file_path = Path(os.path.dirname(__file__)) / "data" / "services.graphml"
 json_file_path = Path(os.path.dirname(__file__)) / "data" / "LN_10.json"
@@ -26,7 +27,12 @@ print(base.warcli(f"graph create 10 --outfile={tf_create} --version={DEFAULT_TAG
 base.wait_for_predicate(lambda: Path(tf_create).exists())
 
 print(f"\nCLI tool importing json and writing test graph file: {tf_import}")
-print(base.warcli(f"graph import-json {json_file_path} --outfile={tf_import} --ln_image=carlakirkcohen/lnd:attackathon --cb=carlakirkcohen/circuitbreaker:attackathon-test", network=False))
+print(
+    base.warcli(
+        f"graph import-json {json_file_path} --outfile={tf_import} --ln_image=carlakirkcohen/lnd:attackathon --cb=carlakirkcohen/circuitbreaker:attackathon-test",
+        network=False,
+    )
+)
 base.wait_for_predicate(lambda: Path(tf_import).exists())
 
 # Validate the graph schema
@@ -79,7 +85,9 @@ if base.backend == "compose":
     else:
         raise Exception("addrmanobserver not OK")
 
-    grafana_res = requests.get("http://localhost:23002/api/datasources/uid/prometheusdatasource/health")
+    grafana_res = requests.get(
+        "http://localhost:23002/api/datasources/uid/prometheusdatasource/health"
+    )
     assert grafana_res.status_code == 200
     health = grafana_res.json()
     if health["message"] == "Successfully queried the Prometheus API.":
@@ -122,14 +130,16 @@ print("Ensuring warnet LN channel policies match imported JSON description")
 with open(json_file_path) as file:
     actual = json.loads(base.warcli("lncli 0 describegraph"))["edges"]
     expected = json.loads(file.read())["edges"]
-    expected = sorted(expected, key=lambda chan: int(chan['channel_id']))
+    expected = sorted(expected, key=lambda chan: int(chan["channel_id"]))
     for chan_index, actual_chan in enumerate(actual):
         expected_chan = expected[chan_index]
         if not channel_match(actual_chan, expected_chan, allow_flip=True):
             raise Exception(
-                f"Channel policy doesn't match source: {actual_chan['channel_id']}\n" +
-                "Actual:\n" + json.dumps(actual_chan, indent=2) +
-                "Expected:\n" + json.dumps(expected_chan, indent=2)
+                f"Channel policy doesn't match source: {actual_chan['channel_id']}\n"
+                + "Actual:\n"
+                + json.dumps(actual_chan, indent=2)
+                + "Expected:\n"
+                + json.dumps(expected_chan, indent=2)
             )
 
 base.stop_server()

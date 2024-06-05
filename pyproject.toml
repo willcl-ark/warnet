@@ -12,11 +12,32 @@ license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
-dynamic = ["version", "dependencies"]
+dynamic = ["version"]
+dependencies = [
+    "click",
+    "jsonrpcclient",
+    "networkx",
+    "requests<2.30",
+    "rich",
+]
 
 [project.scripts]
 warnet = "warnet.server:run_server"
 warcli = "cli.main:cli"
+
+[project.optional-dependencies]
+server = [
+        "docker",
+        "flask",
+        "Flask-JSONRPC",
+        "jsonschema",
+        "jsonrpcserver",
+        "jsonrpcclient",
+        "kubernetes",
+        "numpy",
+        "tabulate",
+        "PyYAML"
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

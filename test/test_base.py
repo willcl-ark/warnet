@@ -8,7 +8,7 @@ from tempfile import mkdtemp
 from time import sleep
 
 from cli.rpc import rpc_call
-from warnet.utils import exponential_backoff
+from utils import exponential_backoff
 from warnet.warnet import Warnet
 
 

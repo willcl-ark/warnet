@@ -11,10 +11,16 @@ from pathlib import Path
 import networkx
 import yaml
 from backends import ComposeBackend, KubernetesBackend
+from schema import load_schema, validate_graph_schema
 from templates import TEMPLATES
-from warnet.services import AO_CONF_NAME, FO_CONF_NAME, GRAFANA_PROVISIONING, PROM_CONF_NAME
+from utils import gen_config_dir
+from warnet.services import (
+    AO_CONF_NAME,
+    FO_CONF_NAME,
+    GRAFANA_PROVISIONING,
+    PROM_CONF_NAME,
+)
 from warnet.tank import Tank
-from warnet.utils import gen_config_dir, load_schema, validate_graph_schema
 
 logger = logging.getLogger("warnet")
 
@@ -73,7 +79,13 @@ class Warnet:
         has_ln = any(tank.lnnode and tank.lnnode.impl for tank in self.tanks)
         tanks = []
         for tank in self.tanks:
-            tank_data = [tank.index, tank.version if tank.version else tank.image, tank.ipv4, tank.bitcoin_config, tank.netem]
+            tank_data = [
+                tank.index,
+                tank.version if tank.version else tank.image,
+                tank.ipv4,
+                tank.bitcoin_config,
+                tank.netem,
+            ]
             if has_ln:
                 tank_data.extend(
                     [
@@ -107,7 +119,9 @@ class Warnet:
         with open(destination, "wb") as f:
             f.write(graph_file)
         self.network_name = network
-        self.graph = networkx.parse_graphml(graph_file.decode("utf-8"), node_type=int, force_multigraph=True)
+        self.graph = networkx.parse_graphml(
+            graph_file.decode("utf-8"), node_type=int, force_multigraph=True
+        )
         validate_graph_schema(self.graph)
         self.tanks_from_graph()
         if "services" in self.graph.graph:
@@ -132,7 +146,9 @@ class Warnet:
         self = cls(config_dir, backend, network_name)
         self.network_name = network_name
         # Get network graph edges from graph file (required for network restarts)
-        self.graph = networkx.read_graphml(Path(self.config_dir / self.graph_name), node_type=int, force_multigraph=True)
+        self.graph = networkx.read_graphml(
+            Path(self.config_dir / self.graph_name), node_type=int, force_multigraph=True
+        )
         validate_graph_schema(self.graph)
         self.tanks_from_graph()
         if "services" in self.graph.graph:
@@ -207,7 +223,7 @@ class Warnet:
                 """
                 )
         logger.info(f"Wrote file: {dst}")
-        
+
     def write_addrman_observer_config(self):
         src = TEMPLATES / AO_CONF_NAME
         dst = self.config_dir / AO_CONF_NAME

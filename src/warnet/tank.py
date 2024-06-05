@@ -5,13 +5,13 @@ Tanks are containerized bitcoind nodes
 import logging
 
 from backends import ServiceType
-from warnet.lnnode import LNNode
-from warnet.utils import (
-    SUPPORTED_TAGS,
+from utils import (
     exponential_backoff,
     generate_ipv4_addr,
     sanitize_tc_netem_command,
 )
+from warnet.lnnode import LNNode
+from warnet.tags import SUPPORTED_TAGS
 
 from .status import RunningStatus
 
@@ -19,19 +19,22 @@ CONTAINER_PREFIX_PROMETHEUS = "prometheus_exporter"
 
 logger = logging.getLogger("tank")
 
-CONFIG_BASE = " ".join([
-    "-regtest=1",
-    "-checkmempool=0",
-    "-acceptnonstdtxn=1",
-    "-debuglogfile=0",
-    "-logips=1",
-    "-logtimemicros=1",
-    "-capturemessages=1",
-    "-rpcallowip=0.0.0.0/0",
-    "-rpcbind=0.0.0.0",
-    "-fallbackfee=0.00001000",
-    "-listen=1"
-])
+CONFIG_BASE = " ".join(
+    [
+        "-regtest=1",
+        "-checkmempool=0",
+        "-acceptnonstdtxn=1",
+        "-debuglogfile=0",
+        "-logips=1",
+        "-logtimemicros=1",
+        "-capturemessages=1",
+        "-rpcallowip=0.0.0.0/0",
+        "-rpcbind=0.0.0.0",
+        "-fallbackfee=0.00001000",
+        "-listen=1",
+    ]
+)
+
 
 class Tank:
     DEFAULT_BUILD_ARGS = "--disable-tests --with-incompatible-bdb --without-gui --disable-bench --disable-fuzz-binary --enable-suppress-external-warnings --enable-debug "
@@ -91,7 +94,7 @@ class Tank:
                 "impl": node["ln"],
                 "ln_image": node.get("ln_image", "lightninglabs/lnd:v0.17.0-beta"),
                 "cb_image": node.get("ln_cb_image", None),
-                "ln_config": node.get("ln_config", "")
+                "ln_config": node.get("ln_config", ""),
             }
             self.lnnode = LNNode(self.warnet, self, self.warnet.container_interface, options)
 

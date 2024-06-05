@@ -24,7 +24,7 @@ services = {
             "-docker_only=true",
             "-storage_duration=1m0s",
             "-disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,process,referenced_memory,resctrl,sched,tcp,udp",
-        ]
+        ],
     },
     "forkobserver": {
         "backends": ["compose"],
@@ -48,9 +48,7 @@ services = {
         "container_name_suffix": "grafana",
         "warnet_port": "23002",
         "container_port": "3000",
-        "volumes": [
-            "grafana-storage:/var/lib/grafana"
-        ],
+        "volumes": ["grafana-storage:/var/lib/grafana"],
         "config_files": [
             f"{GRAFANA_PROVISIONING}/datasources:/etc/grafana/provisioning/datasources",
             f"{GRAFANA_PROVISIONING}/dashboards:/etc/grafana/provisioning/dashboards",
@@ -60,8 +58,8 @@ services = {
             "GF_AUTH_ANONYMOUS_ENABLED=true",
             "GF_ORG_NAME=warnet",
             "GF_ORG_ROLE=Admin",
-            "GF_AUTH_DISABLE_LOGIN_FORM=true"
-        ]
+            "GF_AUTH_DISABLE_LOGIN_FORM=true",
+        ],
     },
     "nodeexporter": {
         "backends": ["compose"],
@@ -69,15 +67,8 @@ services = {
         "container_name_suffix": "node-exporter",
         "warnet_port": "23003",
         "container_port": "9100",
-        "volumes": [
-            "/proc:/host/proc:ro",
-            "/sys:/host/sys:ro",
-            "/:/rootfs:ro"
-        ],
-        "args": [
-            "--path.procfs=/host/proc",
-            "--path.sysfs=/host/sys"
-        ]
+        "volumes": ["/proc:/host/proc:ro", "/sys:/host/sys:ro", "/:/rootfs:ro"],
+        "args": ["--path.procfs=/host/proc", "--path.sysfs=/host/sys"],
     },
     "prometheus": {
         "backends": ["compose"],
@@ -86,16 +77,13 @@ services = {
         "warnet_port": "23004",
         "container_port": "9090",
         "config_files": [f"{PROM_CONF_NAME}:/etc/prometheus/prometheus.yml"],
-        "args": ["--config.file=/etc/prometheus/prometheus.yml"]
+        "args": ["--config.file=/etc/prometheus/prometheus.yml"],
     },
     "simln": {
         "backends": ["compose", "k8s"],
         "image": "bitcoindevproject/simln:0.2.0",
         "container_name_suffix": "simln",
-        "environment": [
-            "LOG_LEVEL=debug",
-            "SIMFILE_PATH=/simln/sim.json"
-        ],
-        "config_files": ["simln/:/simln"]
+        "environment": ["LOG_LEVEL=debug", "SIMFILE_PATH=/simln/sim.json"],
+        "config_files": ["simln/:/simln"],
     },
 }

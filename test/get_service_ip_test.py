@@ -20,15 +20,17 @@ if base.backend == "k8s":
     base.warcli(f"scenarios run get_service_ip --network_name={base.network_name}")
 
     counter = 0
-    while (len(base.rpc("scenarios_list_running")) == 1
-           and base.rpc("scenarios_list_running")[0]["active"]):
+    while (
+        len(base.rpc("scenarios_list_running")) == 1
+        and base.rpc("scenarios_list_running")[0]["active"]
+    ):
         time.sleep(1)
         counter += 1
         if counter > 30:
-            pid = base.rpc("scenarios_list_running")[0]['pid']
+            pid = base.rpc("scenarios_list_running")[0]["pid"]
             base.warcli(f"scenarios stop {pid}", False)
             assert counter < 30
 else:
     print(f"get_service_ip_test does not test {base.backend}")
-    
+
 base.stop_server()

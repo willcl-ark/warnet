@@ -24,10 +24,10 @@ from backends import ServiceType
 from flask import Flask, jsonify, request
 from flask_jsonrpc.app import JSONRPC
 from flask_jsonrpc.exceptions import ServerError
-from warnet.utils import gen_config_dir
+from utils import gen_config_dir
+from warnet import WARNET_SERVER_PORT
 from warnet.warnet import Warnet
 
-WARNET_SERVER_PORT = 9276
 CONFIG_DIR_ALREADY_EXISTS = 32001
 LOGGING_CONFIG_PATH = Path("src/logging_config/config.json")
 
@@ -288,7 +288,7 @@ class Server:
             # tank LN nodes add their credentials to tar archive
             wn.export(config, tar_file, exclude=exclude)
             # write config file
-            config_bytes = json.dumps(config).encode('utf-8')
+            config_bytes = json.dumps(config).encode("utf-8")
             config_stream = io.BytesIO(config_bytes)
             tarinfo = tarfile.TarInfo(name="sim.json")
             tarinfo.size = len(config_bytes)
@@ -303,7 +303,7 @@ class Server:
         if self.backend == "compose":
             # Extract the archive into a subdirectory that is already
             # shared with the simln container as a volume
-            subprocess.run(["tar", "-xf", source_file, "-C", wn.config_dir / 'simln'])
+            subprocess.run(["tar", "-xf", source_file, "-C", wn.config_dir / "simln"])
             # Force quick restart of the container instead of waiting
             # for the exponential backoff to come around
             wn.container_interface.restart_service_container("simln")
@@ -457,7 +457,6 @@ class Server:
         return running
 
     def network_up(self, network: str = "warnet") -> str:
-
         def thread_start(server: Server, network):
             try:
                 wn = server.get_warnet(network)

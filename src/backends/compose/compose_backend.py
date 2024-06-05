@@ -11,13 +11,13 @@ import yaml
 from backends import BackendInterface, ServiceType
 from cli.image import build_image
 from docker.models.containers import Container
-from warnet.services import services
-from warnet.status import RunningStatus
-from warnet.tank import Tank
-from warnet.utils import (
+from utils import (
     get_architecture,
     parse_raw_messages,
 )
+from warnet.services import services
+from warnet.status import RunningStatus
+from warnet.tank import Tank
 
 DOCKER_COMPOSE_NAME = "docker-compose.yml"
 DOCKERFILE_NAME = "Dockerfile"
@@ -308,7 +308,9 @@ class ComposeBackend(BackendInterface):
             image = f"{DOCKER_REGISTRY}:{tank.version}"
             services[container_name]["image"] = image
 
-        peers = [self.get_container_name(dst_index, ServiceType.BITCOIN) for dst_index in tank.init_peers]
+        peers = [
+            self.get_container_name(dst_index, ServiceType.BITCOIN) for dst_index in tank.init_peers
+        ]
         args = tank.get_bitcoin_conf(peers)
 
         # Add common bitcoind service details
@@ -479,7 +481,7 @@ class ComposeBackend(BackendInterface):
             "command": obj.get("args", []),
             "environment": obj.get("environment", []),
             "restart": "on-failure",
-            "networks": [self.network_name]
+            "networks": [self.network_name],
         }
 
     def restart_service_container(self, service_name: str):

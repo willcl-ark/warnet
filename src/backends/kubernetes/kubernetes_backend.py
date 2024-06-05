@@ -16,10 +16,10 @@ from kubernetes.client.rest import ApiException
 from kubernetes.dynamic import DynamicClient
 from kubernetes.dynamic.exceptions import NotFoundError, ResourceNotFoundError
 from kubernetes.stream import stream
+from utils import parse_raw_messages
 from warnet.services import services
 from warnet.status import RunningStatus
 from warnet.tank import Tank
-from warnet.utils import parse_raw_messages
 
 DOCKER_REGISTRY_CORE = "bitcoindevproject/bitcoin"
 LOCAL_REGISTRY = "warnet/bitcoin-core"
