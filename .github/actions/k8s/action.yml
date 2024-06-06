@@ -17,13 +17,10 @@ runs:
         docker image ls -a
 
         echo Installing warnet python package for cli
-        pip install --upgrade pip
-        pip install -e .
+        uv pip install --system --break-system-packages --no-cache -r requirements.txt
+        uv pip install --system --break-system-packages --no-cache -e .
 
-        echo patching k8s configs to use local image
-        echo Patching warnet-rpc-statefulset-dev to use local registry
-        sed -i "s|imagePullPolicy: Always|imagePullPolicy: Never|g" src/templates/rpc/warnet-rpc-statefulset-dev.yaml
-        sed -i "s|bitcoindevproject/warnet-rpc:dev|local/warnet-rpc:ci|g" src/templates/rpc/warnet-rpc-statefulset-dev.yaml
+        echo "Using warnet-rpc-statefulset-dev.yaml:"
         cat src/templates/rpc/warnet-rpc-statefulset-dev.yaml
 
         echo Setting up k8s
