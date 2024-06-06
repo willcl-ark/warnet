@@ -57,8 +57,9 @@ jobs:
       - name: Run tests
         run: |
           uv venv
+          source .venv/bin/activate
           uv pip install .
-          uv test/${{matrix.test}} ${{matrix.backend}}
+          test/${{matrix.test}} ${{matrix.backend}}
   build-test:
     needs: [build-image]
     runs-on: ubuntu-latest
@@ -68,5 +69,6 @@ jobs:
       - uses: ./.github/actions/compose
       - run: |
           uv venv
+          source .venv/bin/activate
           uv pip install .
-          uv run test/build_branch_test.py compose
+          test/build_branch_test.py compose
