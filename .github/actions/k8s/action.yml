@@ -17,8 +17,8 @@ runs:
         docker image ls -a
 
         echo Installing warnet python package for cli
-        uv pip install --system --no-cache -r requirements.txt
-        uv pip install --system --no-cache -e .
+        uv pip install --system --break-system-packages --no-cache -r requirements.txt
+        uv pip install --system --break-system-packages --no-cache -e .
 
         echo "Using warnet-rpc-statefulset-dev.yaml:"
         cat src/templates/rpc/warnet-rpc-statefulset-dev.yaml
