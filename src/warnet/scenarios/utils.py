@@ -1,4 +1,5 @@
 from ipaddress import IPv4Address, IPv6Address, ip_address
+
 from kubernetes import client, config
 
 
@@ -20,10 +21,10 @@ def get_service_ip(service_name: str) -> (IPv4Address | IPv6Address, IPv4Address
     try:
         initial_subset = endpoints.subsets[0]
     except IndexError:
-        raise f"{service_name}'s endpoint does not have an initial subset"
+        raise f"{service_name}'s endpoint does not have an initial subset" from IndexError
     try:
         initial_address = initial_subset.addresses[0]
     except IndexError:
-        raise f"{service_name}'s initial subset does not have an initial address"
+        raise f"{service_name}'s initial subset does not have an initial address" from IndexError
 
     return ip_address(service.spec.cluster_ip), ip_address(initial_address.ip)
