@@ -4,8 +4,7 @@ Tanks are containerized bitcoind nodes
 
 import logging
 
-from backends import ServiceType
-from warnet.lnnode import LNNode
+from warnet.services import ServiceType
 from warnet.utils import (
     SUPPORTED_TAGS,
     exponential_backoff,
@@ -19,24 +18,28 @@ CONTAINER_PREFIX_PROMETHEUS = "prometheus_exporter"
 
 logger = logging.getLogger("tank")
 
-CONFIG_BASE = " ".join([
-    "-regtest=1",
-    "-checkmempool=0",
-    "-acceptnonstdtxn=1",
-    "-debuglogfile=0",
-    "-logips=1",
-    "-logtimemicros=1",
-    "-capturemessages=1",
-    "-rpcallowip=0.0.0.0/0",
-    "-rpcbind=0.0.0.0",
-    "-fallbackfee=0.00001000",
-    "-listen=1"
-])
+CONFIG_BASE = " ".join(
+    [
+        "-regtest=1",
+        "-checkmempool=0",
+        "-acceptnonstdtxn=1",
+        "-debuglogfile=0",
+        "-logips=1",
+        "-logtimemicros=1",
+        "-capturemessages=1",
+        "-rpcallowip=0.0.0.0/0",
+        "-rpcbind=0.0.0.0",
+        "-fallbackfee=0.00001000",
+        "-listen=1",
+    ]
+)
+
 
 class Tank:
     DEFAULT_BUILD_ARGS = "--disable-tests --with-incompatible-bdb --without-gui --disable-bench --disable-fuzz-binary --enable-suppress-external-warnings --enable-debug "
 
     def __init__(self, index: int, warnet):
+        from warnet.lnnode import LNNode
         self.index = index
         self.warnet = warnet
         self.network_name = warnet.network_name
@@ -89,10 +92,11 @@ class Tank:
         if "ln" in node:
             options = {
                 "impl": node["ln"],
-                "ln_image": node.get("ln_image", "lightninglabs/lnd:v0.17.0-beta"),
+                "ln_image": node.get("ln_image", "lightninglabs/lnd:v0.18.0-beta"),
                 "cb_image": node.get("ln_cb_image", None),
-                "ln_config": node.get("ln_config", "")
+                "ln_config": node.get("ln_config", ""),
             }
+            from warnet.lnnode import LNNode
             self.lnnode = LNNode(self.warnet, self, self.warnet.container_interface, options)
 
         logger.debug(
@@ -135,6 +139,14 @@ class Tank:
     @exponential_backoff()
     def exec(self, cmd: str):
         return self.warnet.container_interface.exec_run(self.index, ServiceType.BITCOIN, cmd=cmd)
+
+    def get_dns_addr(self) -> str:
+        dns_addr = self.warnet.container_interface.get_tank_dns_addr(self.index)
+        return dns_addr
+
+    def get_ip_addr(self) -> str:
+        ip_addr = self.warnet.container_interface.get_tank_ip_addr(self.index)
+        return ip_addr
 
     def get_bitcoin_conf(self, nodes: list[str]) -> str:
         conf = CONFIG_BASE

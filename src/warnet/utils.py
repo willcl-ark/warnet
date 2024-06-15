@@ -22,11 +22,12 @@ logger = logging.getLogger("utils")
 
 
 SUPPORTED_TAGS = [
+    "27.0",
     "26.0",
     "25.1",
     "24.2",
     "23.2",
-    "22.2",
+    "22.2"
 ]
 DEFAULT_TAG = SUPPORTED_TAGS[0]
 WEIGHTED_TAGS = [
@@ -500,9 +501,13 @@ def policy_match(pol1, pol2):
 def channel_match(ch1, ch2, allow_flip=False):
     if ch1["capacity"] != ch2["capacity"]:
         return False
-    if policy_match(ch1["node1_policy"], ch2["node1_policy"]) and policy_match(ch1["node2_policy"], ch2["node2_policy"]):
+    if policy_match(ch1["node1_policy"], ch2["node1_policy"]) and policy_match(
+        ch1["node2_policy"], ch2["node2_policy"]
+    ):
         return True
     if not allow_flip:
         return False
     else:
-        return policy_match(ch1["node1_policy"], ch2["node2_policy"]) and policy_match(ch1["node2_policy"], ch2["node1_policy"])
+        return policy_match(ch1["node1_policy"], ch2["node2_policy"]) and policy_match(
+            ch1["node2_policy"], ch2["node1_policy"]
+        )

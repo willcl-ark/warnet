@@ -7,16 +7,16 @@ from pathlib import Path
 from typing import cast
 
 import yaml
-from backends import BackendInterface, ServiceType
 from cli.image import build_image
 from kubernetes import client, config
+from kubernetes.client.exceptions import ApiValueError
 from kubernetes.client.models.v1_pod import V1Pod
 from kubernetes.client.models.v1_service import V1Service
 from kubernetes.client.rest import ApiException
 from kubernetes.dynamic import DynamicClient
 from kubernetes.dynamic.exceptions import NotFoundError, ResourceNotFoundError
 from kubernetes.stream import stream
-from warnet.services import services
+from warnet.services import ServiceType, services
 from warnet.status import RunningStatus
 from warnet.tank import Tank
 from warnet.utils import parse_raw_messages
@@ -36,9 +36,8 @@ LND_MOUNT_PATH = "/root/.lnd"
 logger = logging.getLogger("KubernetesBackend")
 
 
-class KubernetesBackend(BackendInterface):
+class KubernetesBackend:
     def __init__(self, config_dir: Path, network_name: str, logs_pod="fluentd") -> None:
-        super().__init__(config_dir)
         # assumes the warnet rpc server is always
         # running inside a k8s cluster as a statefulset
         config.load_incluster_config()
@@ -60,7 +59,7 @@ class KubernetesBackend(BackendInterface):
 
     def down(self, warnet) -> bool:
         """
-        Bring an exsiting network down.
+        Bring an existing network down.
             e.g. `k delete -f warnet-tanks.yaml`
         """
 
@@ -82,15 +81,14 @@ class KubernetesBackend(BackendInterface):
         self.remove_prometheus_service_monitors(warnet.tanks)
 
         for service_name in warnet.services:
-            if "k8s" in services[service_name]["backends"]:
-                self.client.delete_namespaced_pod(
-                    self.get_service_pod_name(services[service_name]["container_name_suffix"]),
-                    self.namespace,
-                )
-                self.client.delete_namespaced_service(
-                    self.get_service_service_name(services[service_name]["container_name_suffix"]),
-                    self.namespace,
-                )
+            self.client.delete_namespaced_pod(
+                self.get_service_pod_name(services[service_name]["container_name_suffix"]),
+                self.namespace,
+            )
+            self.client.delete_namespaced_service(
+                self.get_service_service_name(services[service_name]["container_name_suffix"]),
+                self.namespace,
+            )
 
         return True
 
@@ -553,13 +551,40 @@ class KubernetesBackend(BackendInterface):
             ),
         )
 
-    def get_tank_ipv4(self, index: int) -> str:
+    def get_tank_ipv4(self, index: int) -> str | None:
         pod_name = self.get_pod_name(index, ServiceType.BITCOIN)
         pod = self.get_pod(pod_name)
         if pod:
             return pod.status.pod_ip
         else:
             return None
+
+    def get_tank_dns_addr(self, index: int) -> str | None:
+        service_name = self.get_service_name(index, ServiceType.BITCOIN)
+        try:
+            self.client.read_namespaced_service(name=service_name, namespace=self.namespace)
+        except ApiValueError as e:
+            self.log.info(ApiValueError(f"dns addr request for {service_name} raised {str(e)}"))
+            return None
+        return service_name
+
+    def get_tank_ip_addr(self, index: int) -> str | None:
+        service_name = self.get_service_name(index, ServiceType.BITCOIN)
+        try:
+            endpoints = self.client.read_namespaced_endpoints(name=service_name, namespace=self.namespace)
+        except ApiValueError as e:
+            self.log.info(f"ip addr request for {service_name} raised {str(e)}")
+            return None
+
+        if len(endpoints.subsets) == 0:
+            raise Exception(f"{service_name}'s endpoint does not have an initial subset")
+        initial_subset = endpoints.subsets[0]
+
+        if len(initial_subset.addresses) == 0:
+            raise Exception(f"{service_name}'s initial subset does not have an initial address")
+        initial_address = initial_subset.addresses[0]
+
+        return str(initial_address.ip)
 
     def create_bitcoind_service(self, tank) -> client.V1Service:
         service_name = self.get_service_name(tank.index, ServiceType.BITCOIN)
@@ -699,8 +724,7 @@ class KubernetesBackend(BackendInterface):
             self.apply_prometheus_service_monitors(warnet.tanks)
 
         for service_name in warnet.services:
-            if "k8s" in services[service_name]["backends"]:
-                self.service_from_json(services[service_name])
+            self.service_from_json(services[service_name])
 
         self.log.debug("Containers and services created. Configuring IP addresses")
         # now that the pods have had a second to create,
