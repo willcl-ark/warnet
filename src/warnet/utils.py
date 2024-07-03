@@ -22,6 +22,7 @@ logger = logging.getLogger("utils")
 
 
 SUPPORTED_TAGS = [
+    "27.1-exe",
     "27.0",
     "26.0",
     "25.1",
