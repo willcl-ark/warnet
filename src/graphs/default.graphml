@@ -6,6 +6,7 @@
   <key attr.name="exporter" attr.type="boolean" for="node" id="exporter"/>
   <key attr.name="collect_logs" attr.type="boolean" for="node" id="collect_logs"/>
   <key attr.name="image" attr.type="string" for="node" id="image"/>
+  <key attr.name="role" attr.type="string" for="node" id="role"/>
   <graph edgedefault="directed">
     <node id="0">
         <data key="version">27.1-exe</data>
