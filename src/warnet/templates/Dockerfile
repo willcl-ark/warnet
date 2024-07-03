@@ -70,6 +70,7 @@ RUN addgroup bitcoin --gid ${GID} --system \
 RUN --mount=type=cache,target=/var/cache/apk sed -i 's/http\:\/\/dl-cdn.alpinelinux.org/https\:\/\/alpine.global.ssl.fastly.net/g' /etc/apk/repositories \
     && apk --no-cache add \
     bash \
+    inotify-tools \
     libevent \
     libzmq \
     shadow \
@@ -79,6 +80,7 @@ RUN --mount=type=cache,target=/var/cache/apk sed -i 's/http\:\/\/dl-cdn.alpineli
 COPY --from=build /opt/bitcoin /usr/local
 COPY src/warnet/templates/entrypoint.sh /entrypoint.sh
 COPY src/warnet/templates/tor/torrc /etc/tor/warnet-torr
+COPY scripts/file-executor.sh /file-executor.sh
 
 VOLUME ["/home/bitcoin/.bitcoin"]
 EXPOSE 8332 8333 18332 18333 18443 18444 38333 38332
