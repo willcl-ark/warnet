@@ -17,7 +17,7 @@ start:
 
     # Function to check if minikube is running
     check_minikube() {
-        minikube status | grep -q "Running" && echo "Minikube is already running" || minikube start --mount --mount-string="$PWD:/mnt/src"
+        minikube status | grep -q "Running" && echo "Minikube is already running" || minikube start --cpus 12 --memory 24576 --mount --mount-string="$PWD:/mnt/src"
     }
 
     # Function to check if warnet-rpc container is already running

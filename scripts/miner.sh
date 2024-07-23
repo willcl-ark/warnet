@@ -2,7 +2,7 @@
 
 # Generate a Poisson-distributed sleep time between 1 and 20 seconds
 generate_poisson_sleep() {
-  local lambda=10 # Average rate (lambda) for Poisson distribution
+  local lambda=600 # Average rate (lambda) for Poisson distribution
   local sleep_time
   sleep_time=$(awk -v lambda="$lambda" 'BEGIN {
     sum = 0;
@@ -12,11 +12,11 @@ generate_poisson_sleep() {
     print int(sum);
   }')
 
-  # Ensure sleep time is between 1 and 20 seconds
+  # Ensure sleep time is between 1 and 600 seconds
   if [ "$sleep_time" -lt 1 ]; then
     sleep_time=1
   elif [ "$sleep_time" -gt 20 ]; then
-    sleep_time=20
+    sleep_time=600
   fi
 
   echo "$sleep_time"
