@@ -1,0 +1,7 @@
+config:
+  snippets:
+    extraRelabelConfigs:
+      - action: keep
+        source_labels:
+          - __meta_kubernetes_namespace
+        regex: warnet
