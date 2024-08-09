@@ -27,7 +27,7 @@ options:
 | commands | String |            |           |
 
 ### `warcli setup`
-Run the Warnet quick start setup script
+Check Warnet requirements are installed
 
 
 ## Bitcoin
@@ -73,6 +73,22 @@ options:
 
 ## Cluster
 
+### `warcli cluster connect-logging`
+Connect kubectl to cluster logging
+
+
+### `warcli cluster deploy`
+Deploy Warnet using the current kubectl-configured cluster
+
+options:
+| name   | type   | required   | default   |
+|--------|--------|------------|-----------|
+| dev    | Bool   |            | False     |
+
+### `warcli cluster deploy-logging`
+Deploy logging configurations to the cluster using helm
+
+
 ### `warcli cluster port-start`
 Port forward (runs as a detached process)
 
@@ -81,11 +97,15 @@ Port forward (runs as a detached process)
 Stop the port forwarding process
 
 
-### `warcli cluster start`
-Setup and start Warnet with minikube
+### `warcli cluster setup-minikube`
+Configure a local minikube cluster
 
+options:
+| name   | type   | required   | default   |
+|--------|--------|------------|-----------|
+| clean  | Bool   |            | False     |
 
-### `warcli cluster stop`
+### `warcli cluster teardown`
 Stop the warnet server and tear down the cluster
 
 
@@ -129,19 +149,19 @@ options:
 ## Image
 
 ### `warcli image build`
-Build bitcoind and bitcoin-cli from \<repo>/\<branch> as \<registry>:\<tag>.
+Build bitcoind and bitcoin-cli from \<repo> at \<commit_sha> as \<registry>:\<tag>.
     Optionally deploy to remote registry using --action=push, otherwise image is loaded to local registry.
 
 options:
 | name       | type   | required   | default   |
 |------------|--------|------------|-----------|
 | repo       | String | yes        |           |
-| branch     | String | yes        |           |
+| commit_sha | String | yes        |           |
 | registry   | String | yes        |           |
 | tag        | String | yes        |           |
 | build_args | String |            |           |
 | arches     | String |            |           |
-| action     | String |            |           |
+| action     | String |            | "load"    |
 
 ## Ln
 
@@ -207,11 +227,11 @@ options:
 Start a warnet with topology loaded from a \<graph_file> into [network]
 
 options:
-| name       | type   | required   | default                           |
-|------------|--------|------------|-----------------------------------|
-| graph_file | Path   |            | src/warnet/graphs/default.graphml |
-| force      | Bool   |            | False                             |
-| network    | String |            | "warnet"                          |
+| name       | type   | required   | default                          |
+|------------|--------|------------|----------------------------------|
+| graph_file | Path   |            | resources/graphs/default.graphml |
+| force      | Bool   |            | False                            |
+| network    | String |            | "warnet"                         |
 
 ### `warcli network status`
 Get status of a warnet named [network]
