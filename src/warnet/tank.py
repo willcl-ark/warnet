@@ -51,6 +51,7 @@ class Tank:
         self.exporter = False
         self.metrics = None
         self.collect_logs = False
+        self.resource_profile = "default"
         self.build_args = ""
         self.lnnode: LNNode | None = None
         self.rpc_port = 18443

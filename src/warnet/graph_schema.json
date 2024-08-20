@@ -55,7 +55,10 @@
         "comment": "Specify a lnd Circuit Breaker image from Dockerhub with the format repository/image:tag"},
       "ln_config": {
         "type": "string",
-        "comment": "A string of arguments for the lightning network node in command-line format, e.g. '--protocol.wumbo-channels --bitcoin.timelockdelta=80'"}
+        "comment": "A string of arguments for the lightning network node in command-line format, e.g. '--protocol.wumbo-channels --bitcoin.timelockdelta=80'"},
+      "profile": {
+        "type": "string",
+        "comment": "A resource profile for the node'"}
     },
     "additionalProperties": false,
     "oneOf": [
