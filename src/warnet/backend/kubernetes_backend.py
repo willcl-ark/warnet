@@ -20,6 +20,7 @@ from warnet.services import SERVICES, ServiceType
 from warnet.status import RunningStatus
 from warnet.tank import Tank
 from warnet.utils import parse_raw_messages
+from warnet.resources import resource_profiles
 
 DOCKER_REGISTRY_CORE = "bitcoindevproject/bitcoin"
 LOCAL_REGISTRY = "warnet/bitcoin-core"
@@ -384,6 +385,7 @@ class KubernetesBackend:
         bitcoind_options = tank.get_bitcoin_conf(peers)
         container_env = [client.V1EnvVar(name="BITCOIN_ARGS", value=bitcoind_options)]
 
+        resources = resource_profiles[tank.profile]
         bitcoind_container = client.V1Container(
             name=container_name,
             image=container_image,
@@ -405,6 +407,10 @@ class KubernetesBackend:
             security_context=client.V1SecurityContext(
                 privileged=True,
                 capabilities=client.V1Capabilities(add=["NET_ADMIN", "NET_RAW"]),
+            ),
+            resources=client.V1ResourceRequirements(
+                requests=resources["requests"],
+                limits=resources["limits"],
             ),
         )
         self.log.debug(

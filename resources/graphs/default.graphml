@@ -15,12 +15,14 @@
   <key id="channel_open"    attr.name="channel_open"     attr.type="string"   for="edge" />
   <key id="source_policy"   attr.name="source_policy"    attr.type="string"   for="edge" />
   <key id="target_policy"   attr.name="target_policy"    attr.type="string"   for="edge" />
+  <key id="profile"         attr.name="profile"          attr.type="string"   for="edge" />
   <graph edgedefault="directed">
     <node id="0">
         <data key="version">27.0</data>
         <data key="bitcoin_config">-uacomment=w0</data>
         <data key="exporter">true</data>
         <data key="collect_logs">true</data>
+        <data key="profile">laptop</data>
     </node>
     <node id="1">
         <data key="version">27.0</data>
