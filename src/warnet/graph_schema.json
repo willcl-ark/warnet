@@ -58,6 +58,7 @@
         "comment": "A string of arguments for the lightning network node in command-line format, e.g. '--protocol.wumbo-channels --bitcoin.timelockdelta=80'"},
       "profile": {
         "type": "string",
+        "default": "default",
         "comment": "A resource profile for the node'"}
     },
     "additionalProperties": false,
