@@ -25,6 +25,7 @@ def create(number: int, outfile: Path, version: str, bitcoin_conf: Path, random:
     Returns XML file as string with or without --outfile option
     """
     graph = create_cycle_graph(number, version, bitcoin_conf, random)
+    validate_graph_schema(graph)
 
     if outfile:
         file_path = Path(outfile)
