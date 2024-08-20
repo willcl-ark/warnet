@@ -42,10 +42,13 @@ def start(graph_file: Path, logging: bool, network: str):
                 print(
                     "Warning: Failed to set kubectl context. You may need to manually switch to the warnet namespace."
                 )
-            if logging and setup_logging_helm():
-                print("Helm charts installed successfully.")
+            if not logging:
+                print("Skipping install of logging charts")
             else:
-                print("Failed to install Helm charts.")
+                if setup_logging_helm():
+                    print("Helm charts installed successfully.")
+                else:
+                    print("Failed to install Helm charts.")
         else:
             print(f"Failed to start warnet '{network}'.")
     finally:
