@@ -8,6 +8,7 @@ echo "Grafana pod name: ${POD_NAME}"
 
 while true; do
   echo "Attempting to start Grafana port forwarding"
+  echo "Please wait... it might take a few minutes for all logging pods to start"
   kubectl --namespace warnet-logging port-forward "${POD_NAME}" 3000 2>&1
   echo "Grafana port forwarding exited with status: $?"
   sleep 5

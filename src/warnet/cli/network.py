@@ -1,44 +1,24 @@
-import base64  # noqa: I001
-import json
-from pathlib import Path
+import tempfile
 from importlib.resources import files
+from pathlib import Path
+from typing import Any, Dict, List
 
 import click
+import networkx as nx
+import yaml
 from rich import print
-from rich.console import Console
-from rich.table import Table
 
-from .rpc import rpc_call  # noqa: I001
-from .util import run_command
-
+from .k8s import (
+    apply_kubernetes_yaml,
+    create_namespace,
+    delete_namespace,
+    deploy_base_configurations,
+    set_kubectl_context,
+)
+from .process import run_command
 
 DEFAULT_GRAPH_FILE = files("graphs").joinpath("default.graphml")
-
-
-def print_repr(wn: dict) -> None:
-    if not isinstance(wn, dict):
-        print("Error, cannot print_repr of non-dict")
-        return
-    console = Console()
-
-    # Warnet table
-    warnet_table = Table(show_header=True, header_style="bold")
-    for header in wn["warnet_headers"]:
-        warnet_table.add_column(header)
-    for row in wn["warnet"]:
-        warnet_table.add_row(*[str(cell) for cell in row])
-
-    # Tank table
-    tank_table = Table(show_header=True, header_style="bold")
-    for header in wn["tank_headers"]:
-        tank_table.add_column(header)
-    for row in wn["tanks"]:
-        tank_table.add_row(*[str(cell) for cell in row])
-
-    console.print("Warnet:")
-    console.print(warnet_table)
-    console.print("\nTanks:")
-    console.print(tank_table)
+WAR_MANIFESTS = files("manifests")
 
 
 @click.group(name="network")
@@ -46,129 +26,205 @@ def network():
     """Network commands"""
 
 
+def read_graph_file(graph_file: Path) -> nx.Graph:
+    with open(graph_file) as f:
+        return nx.parse_graphml(f.read())
+
+
+def generate_node_config(node: int, data: dict, graph: nx.Graph) -> str:
+    base_config = """
+regtest=1
+checkmempool=0
+acceptnonstdtxn=1
+debuglogfile=0
+logips=1
+logtimemicros=1
+capturemessages=1
+fallbackfee=0.00001000
+listen=1
+
+[regtest]
+rpcuser=user
+rpcpassword=password
+rpcport=18443
+rpcallowip=0.0.0.0/0
+rpcbind=0.0.0.0
+
+zmqpubrawblock=tcp://0.0.0.0:28332
+zmqpubrawtx=tcp://0.0.0.0:28333
+"""
+    node_specific_config = data.get("bitcoin_config", "").replace(",", "\n")
+
+    # Add addnode configurations for connected nodes
+    connected_nodes = list(graph.neighbors(node))
+    addnode_configs = [f"addnode=warnet-tank-{index}-service" for index in connected_nodes]
+
+    return f"{base_config}\n{node_specific_config}\n" + "\n".join(addnode_configs)
+
+
+def create_kubernetes_object(
+    kind: str, metadata: Dict[str, Any], spec: Dict[str, Any] = None
+) -> Dict[str, Any]:
+    obj = {
+        "apiVersion": "v1",
+        "kind": kind,
+        "metadata": metadata,
+    }
+    if spec is not None:
+        obj["spec"] = spec
+    return obj
+
+
+def create_node_deployment(node: int, data: dict) -> Dict[str, Any]:
+    image = data.get("image", "bitcoindevproject/bitcoin:27.0")
+    version = data.get("version", "27.0")
+
+    return create_kubernetes_object(
+        kind="Pod",
+        metadata={
+            "name": f"warnet-tank-{node}",
+            "namespace": "warnet",
+            "labels": {"app": "warnet", "mission": "tank", "index": str(node)},
+        },
+        spec={
+            "containers": [
+                {
+                    "name": "bitcoin",
+                    "image": image,
+                    "env": [{"name": "BITCOIN_VERSION", "value": version}],
+                    "volumeMounts": [
+                        {
+                            "name": "config",
+                            "mountPath": "/root/.bitcoin/bitcoin.conf",
+                            "subPath": "bitcoin.conf",
+                        }
+                    ],
+                    "ports": [
+                        {"containerPort": 18444},
+                        {"containerPort": 18443},
+                    ],
+                }
+            ],
+            "volumes": [{"name": "config", "configMap": {"name": f"bitcoin-config-tank-{node}"}}],
+        },
+    )
+
+
+def create_node_service(node: int) -> Dict[str, Any]:
+    return create_kubernetes_object(
+        kind="Service",
+        metadata={"name": f"warnet-tank-{node}-service", "namespace": "warnet"},
+        spec={
+            "selector": {"app": "warnet", "mission": "tank", "index": str(node)},
+            "ports": [
+                {"name": "p2p", "port": 18444, "targetPort": 18444},
+                {"name": "rpc", "port": 18443, "targetPort": 18443},
+            ],
+        },
+    )
+
+
+def create_config_map(node: int, config: str) -> Dict[str, Any]:
+    config_map = create_kubernetes_object(
+        kind="ConfigMap",
+        metadata={
+            "name": f"bitcoin-config-tank-{node}",
+            "namespace": "warnet",
+        },
+    )
+    config_map["data"] = {"bitcoin.conf": config}
+    return config_map
+
+
+def generate_kubernetes_yaml(graph: nx.Graph) -> List[Dict[str, Any]]:
+    kubernetes_objects = [create_namespace()]
+
+    for node, data in graph.nodes(data=True):
+        config = generate_node_config(node, data, graph)
+        kubernetes_objects.extend(
+            [
+                create_config_map(node, config),
+                create_node_deployment(node, data),
+                create_node_service(node),
+            ]
+        )
+
+    return kubernetes_objects
+
+
+def setup_logging_helm() -> bool:
+    helm_commands = [
+        "helm repo add grafana https://grafana.github.io/helm-charts",
+        "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts",
+        "helm repo update",
+        f"helm upgrade --install --namespace warnet-logging --create-namespace --values {WAR_MANIFESTS}/loki_values.yaml loki grafana/loki --version 5.47.2",
+        "helm upgrade --install --namespace warnet-logging promtail grafana/promtail",
+        "helm upgrade --install --namespace warnet-logging prometheus prometheus-community/kube-prometheus-stack --namespace warnet-logging --set grafana.enabled=false",
+        f"helm upgrade --install --namespace warnet-logging loki-grafana grafana/grafana --values {WAR_MANIFESTS}/grafana_values.yaml",
+    ]
+
+    for command in helm_commands:
+        if not run_command(command, stream_output=True):
+            print(f"Failed to run Helm command: {command}")
+            return False
+    return True
+
+
 @network.command()
 @click.argument("graph_file", default=DEFAULT_GRAPH_FILE, type=click.Path())
-@click.option("--force", default=False, is_flag=True, type=bool)
 @click.option("--network", default="warnet", show_default=True)
-def start(graph_file: Path, force: bool, network: str):
-    """
-    Start a warnet with topology loaded from a <graph_file> into [network]
-    """
+@click.option("--logging/--no-logging", default=False)
+def start(graph_file: Path, logging: bool, network: str):
+    """Start a warnet with topology loaded from a <graph_file> into [network]"""
+    graph = read_graph_file(graph_file)
+    kubernetes_yaml = generate_kubernetes_yaml(graph)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as temp_file:
+        yaml.dump_all(kubernetes_yaml, temp_file)
+        temp_file_path = temp_file.name
+
     try:
-        encoded_graph_file = ""
-        with open(graph_file, "rb") as graph_file_buffer:
-            encoded_graph_file = base64.b64encode(graph_file_buffer.read()).decode("utf-8")
-    except Exception as e:
-        print(f"Error encoding graph file: {e}")
-        return
-
-    result = rpc_call(
-        "network_from_file",
-        {"graph_file": encoded_graph_file, "force": force, "network": network},
-    )
-    assert isinstance(result, dict)
-    print_repr(result)
-
-
-@network.command()
-@click.option("--network", default="warnet", show_default=True)
-def up(network: str):
-    """
-    Bring up a previously-stopped warnet named [network]
-    """
-    print(rpc_call("network_up", {"network": network}))
+        if deploy_base_configurations() and apply_kubernetes_yaml(temp_file_path):
+            print(f"Warnet '{network}' started successfully.")
+            if not set_kubectl_context(network):
+                print(
+                    "Warning: Failed to set kubectl context. You may need to manually switch to the warnet namespace."
+                )
+            if logging and not setup_logging_helm():
+                print("Failed to install Helm charts.")
+        else:
+            print(f"Failed to start warnet '{network}'.")
+    finally:
+        Path(temp_file_path).unlink()
 
 
 @network.command()
 @click.option("--network", default="warnet", show_default=True)
 def down(network: str):
-    """
-    Bring down a running warnet named [network]
-    """
-
-    running_scenarios = rpc_call("scenarios_list_running", {})
-    assert isinstance(running_scenarios, list)
-    if running_scenarios:
-        for scenario in running_scenarios:
-            pid = scenario.get("pid")
-            if pid:
-                try:
-                    params = {"pid": pid}
-                    rpc_call("scenarios_stop", params)
-                except Exception as e:
-                    print(
-                        f"Exception when stopping scenario: {scenario} with PID {scenario.pid}: {e}"
-                    )
-                    print("Continuing with shutdown...")
-                    continue
-    print(rpc_call("network_down", {"network": network}))
-
-
-@network.command()
-@click.option("--network", default="warnet", show_default=True)
-def info(network: str):
-    """
-    Get info about a warnet named [network]
-    """
-    result = rpc_call("network_info", {"network": network})
-    assert isinstance(result, dict), "Result is not a dict"  # Make mypy happy
-    print_repr(result)
-
-
-@network.command()
-@click.option("--network", default="warnet", show_default=True)
-def status(network: str):
-    """
-    Get status of a warnet named [network]
-    """
-    result = rpc_call("network_status", {"network": network})
-    assert isinstance(result, list), "Result is not a list"  # Make mypy happy
-    for tank in result:
-        lightning_status = ""
-        circuitbreaker_status = ""
-        if "lightning_status" in tank:
-            lightning_status = f"\tLightning: {tank['lightning_status']}"
-        if "circuitbreaker_status" in tank:
-            circuitbreaker_status = f"\tCircuit Breaker: {tank['circuitbreaker_status']}"
-        print(
-            f"Tank: {tank['tank_index']} \tBitcoin: {tank['bitcoin_status']}{lightning_status}{circuitbreaker_status}"
-        )
-
-
-@network.command()
-@click.option("--network", default="warnet", show_default=True)
-def connected(network: str):
-    """
-    Indicate whether the all of the edges in the gaph file are connected in [network]
-    """
-    print(rpc_call("network_connected", {"network": network}))
-
-
-@network.command()
-@click.option("--network", default="warnet", show_default=True)
-@click.option("--activity", type=str)
-@click.option("--exclude", type=str, default="[]")
-def export(network: str, activity: str, exclude: str):
-    """
-    Export all [network] data for a "simln" service running in a container
-    on the network. Optionally add JSON string [activity] to simln config.
-    Optionally provide a list of tank indexes to [exclude].
-    Returns True on success.
-    """
-    exclude = json.loads(exclude)
-    print(
-        rpc_call("network_export", {"network": network, "activity": activity, "exclude": exclude})
-    )
+    """Bring down a running warnet named [network]"""
+    if delete_namespace(network) and delete_namespace("warnet-logging"):
+        print(f"Warnet '{network}' has been successfully brought down and the namespaces deleted.")
+    else:
+        print(f"Failed to bring down warnet '{network}' or delete the namespaces.")
 
 
 @network.command()
 @click.option("--follow", "-f", is_flag=True, help="Follow logs")
 def logs(follow: bool):
     """Get Kubernetes logs from the RPC server"""
-    command = "kubectl logs rpc-0"
-    stream_output = False
-    if follow:
-        command += " --follow"
-        stream_output = True
+    command = f"kubectl logs rpc-0{' --follow' if follow else ''}"
+    run_command(command, stream_output=follow)
 
-    run_command(command, stream_output=stream_output)
+
+@network.command()
+@click.argument("graph_file", default=DEFAULT_GRAPH_FILE, type=click.Path())
+@click.option("--output", "-o", default="warnet-deployment.yaml", help="Output YAML file")
+def generate_yaml(graph_file: Path, output: str):
+    """Generate a Kubernetes YAML file from a graph file for deploying warnet nodes."""
+    graph = read_graph_file(graph_file)
+    kubernetes_yaml = generate_kubernetes_yaml(graph)
+
+    with open(output, "w") as f:
+        yaml.dump_all(kubernetes_yaml, f)
+
+    print(f"Kubernetes YAML file generated: {output}")

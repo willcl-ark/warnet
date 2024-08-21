@@ -165,10 +165,12 @@ class Server:
         self.jsonrpc.register(self.logs_grep)
 
     def scenario_log(self, proc):
-        while not proc.stdout:
+        while not proc.stdout and not proc.stderr:
             time.sleep(0.1)
         for line in proc.stdout:
             self.scenario_logger.info(line.decode().rstrip())
+        for line in proc.stderr:
+            self.scenario_logger.error(line.decode().rstrip())
 
     def get_warnet(self, network: str) -> Warnet:
         """
@@ -354,10 +356,11 @@ class Server:
             t = threading.Thread(target=lambda: self.scenario_log(proc))
             t.daemon = True
             t.start()
+            cmd = f"{scenario_name} {' '.join(additional_args)}".strip()
             self.running_scenarios.append(
                 {
                     "pid": proc.pid,
-                    "cmd": f"{scenario_name} {' '.join(additional_args)}",
+                    "cmd": cmd,
                     "proc": proc,
                     "network": network,
                 }

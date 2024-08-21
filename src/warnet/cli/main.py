@@ -6,11 +6,12 @@ import click
 from rich import print as richprint
 
 from .bitcoin import bitcoin
-from .cluster import cluster
 from .graph import graph
 from .image import image
-from .ln import ln
+
+# from .ln import ln
 from .network import network
+from .network2 import network2
 from .scenarios import scenarios
 
 QUICK_START_PATH = files("scripts").joinpath("quick_start.sh")
@@ -22,11 +23,11 @@ def cli():
 
 
 cli.add_command(bitcoin)
-cli.add_command(cluster)
 cli.add_command(graph)
 cli.add_command(image)
-cli.add_command(ln)
+# cli.add_command(ln)
 cli.add_command(network)
+cli.add_command(network2)
 cli.add_command(scenarios)
 
 
