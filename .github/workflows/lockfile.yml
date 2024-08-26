@@ -1,0 +1,28 @@
+name: Update uv.lock
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'pyproject.toml'
+jobs:
+  update-check-lockfile:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: actions/checkout@v4
+      - uses: hynek/setup-cached-uv@v1
+      - name: Update lockfile if needed
+        run: |
+          uv lock
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update lockfile on ${{ github.head_ref }}
