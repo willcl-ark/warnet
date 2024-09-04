@@ -76,6 +76,11 @@ RUN --mount=type=cache,target=/var/cache/apk sed -i 's/http\:\/\/dl-cdn.alpineli
     sqlite-dev \
     su-exec
 
+# bitcoin-cli wrapper
+COPY bitcoin-cli.sh /etc/profile.d/
+RUN chmod +x /etc/profile.d/bitcoin-cli.sh
+RUN echo '. /etc/profile.d/bitcoin-cli.sh' >> /root/.bashrc
+
 COPY --from=build /opt/bitcoin /usr/local
 COPY entrypoint.sh /
 
