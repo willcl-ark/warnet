@@ -17,14 +17,15 @@ from .namespaces import (
 from .network import (
     BITCOIN_CHART_LOCATION as NETWORK_CHART_LOCATION,
 )
-from .network import (
-    DEFAULTS_FILE as NETWORK_DEFAULTS_FILE,
-)
 
 # Import necessary functions and variables from network.py and namespaces.py
 from .network import (
+    CADDY_CHART,
     FORK_OBSERVER_CHART,
     NETWORK_FILE,
+)
+from .network import (
+    DEFAULTS_FILE as NETWORK_DEFAULTS_FILE,
 )
 from .process import stream_command
 
@@ -56,12 +57,32 @@ def deploy(directory, debug):
     if (directory / NETWORK_FILE).exists():
         deploy_network(directory, debug)
         deploy_fork_observer(directory, debug)
+        deploy_caddy(directory, debug)
     elif (directory / NAMESPACES_FILE).exists():
         deploy_namespaces(directory)
     else:
         click.echo(
             "Error: Neither network.yaml nor namespaces.yaml found in the specified directory."
         )
+
+
+def deploy_caddy(directory: Path, debug: bool):
+    network_file_path = directory / NETWORK_FILE
+    with network_file_path.open() as f:
+        network_file = yaml.safe_load(f)
+
+    # Only start if configured in the network file
+    if not network_file.get("fork_observer", {}).get("enabled", False):
+        return
+
+    namespace = get_default_namespace()
+    cmd = f"{HELM_COMMAND} 'caddy' {CADDY_CHART} --namespace {namespace}"
+    if debug:
+        cmd += " --debug"
+
+    if not stream_command(cmd):
+        click.echo(f"Failed to run Helm command: {cmd}")
+        return
 
 
 def deploy_fork_observer(directory: Path, debug: bool):

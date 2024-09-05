@@ -12,6 +12,7 @@ from .process import stream_command
 WAR_MANIFESTS_FILES = files("resources.manifests")
 WAR_NETWORK_FILES = files("resources.networks")
 WAR_SCENARIOS_FILES = files("resources.scenarios")
+WAR_CADDY_CHARTS = files("resources.charts.caddy")
 
 WAR_NETWORK_DIR = WAR_NETWORK_FILES.name
 WAR_SCENARIOS_DIR = WAR_SCENARIOS_FILES.name
@@ -22,6 +23,7 @@ DEFAULTS_FILE = "node-defaults.yaml"
 HELM_COMMAND = "helm upgrade --install --create-namespace"
 BITCOIN_CHART_LOCATION = str(files("resources.charts").joinpath("bitcoincore"))
 FORK_OBSERVER_CHART = str(files("resources.charts").joinpath("fork-observer"))
+CADDY_CHART = str(files("resources.charts").joinpath("caddy"))
 
 
 def setup_logging_helm() -> bool:
@@ -71,6 +73,15 @@ def copy_network_defaults(directory: Path):
         WAR_NETWORK_FILES.joinpath(),
         ["node-defaults.yaml", "__pycache__", "__init__.py"],
     )
+    # Copy caddy files to the network directory
+    networks_dir = directory / WAR_NETWORK_DIR
+    copy_caddy_files(networks_dir / DEFAULT_NETWORK)
+
+
+def copy_caddy_files(directory: Path):
+    """Copy caddy files to the specified directory"""
+    copy_defaults(directory, "caddy", WAR_CADDY_CHARTS, [])
+    print(f"Copied caddy files to {directory / 'caddy'}")
 
 
 def copy_scenario_defaults(directory: Path):
