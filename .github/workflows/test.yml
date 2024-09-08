@@ -91,3 +91,15 @@ jobs:
         run: |
           source .venv/bin/activate
           ./test/${{matrix.test}}
+      - name: Collect Kubernetes logs
+        if: always()
+        run: |
+          curl -O https://raw.githubusercontent.com/willcl_ark/warnet/resources/scripts/k8s-log-collector.sh
+          chmod +x k8s-log-collector.sh
+          ./k8s-log-collector.sh default
+      - name: Upload log artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-logs
+          path: ./k8s-logs
