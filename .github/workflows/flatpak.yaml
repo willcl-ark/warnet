@@ -2,44 +2,66 @@ name: Build flatpak
 
 on:
   push:
-    branches:
-      - main
+    # branches: [main]
+  pull_request:
 
 env:
   PYTHON_VERSION: "3.11"
 
 jobs:
-  build:
-    name: Build flatpak 📦
+
+  flatpak:
+    name: "Flatpak"
     runs-on: ubuntu-latest
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+      # Don't fail the whole workflow if one architecture fails
+      fail-fast: false
     steps:
+
     - uses: actions/checkout@v4
-    - name: Set up flatpak-builder
+
+    # Docker is required by the docker/setup-qemu-action which enables emulation
+    - name: Install deps
+      if: ${{ matrix.arch != 'x86_64' }}
       run: |
-        sudo apt update
-        sudo apt install -y flatpak flatpak-builder
-        flatpak remote-add --if-not-exists --user flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+        dnf -y install docker
+
+    - name: Set up QEMU
+      if: ${{ matrix.arch != 'x86_64' }}
+      id: qemu
+      uses: docker/setup-qemu-action@v2
+      with:
+        platforms: arm64
+
     - name: Install the latest version of uv
       uses: astral-sh/setup-uv@v2
       with:
         version: "latest"
         enable-cache: true
-    - name: Install Python
-      run: |
-        uv python install $PYTHON_VERSION
-    - name: Build flatpak
+
+    - name: Setup flatpak build
       run: |
         uv venv
         source .venv/bin/activate
         uv pip install -e .[build]
         uv pip install pip
-        env
         ./resources/flatpak/make_flatpak.sh
-    - name: Build flatpak-bundle
-      run: |
-        flatpak build-bundle /home/runner/warnet_flatpak/repo warnet.flatpak com.bitcoindevproject.Warnet
+
+    - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      with:
+        arch: ${{ matrix.arch }}
+        bundle: warnet.flatpak
+        manifest-path: resources/flatpak/org.bitcoindevproject.Warnet.yaml
+        cache-key: flatpak-builder-${{ github.sha }}
+        verbose: true
+
     - name: Upload flatpak artifact
       uses: actions/upload-artifact@v4
       with:
-        name: warnet-flatpak
+        name: warnet.flatpak
         path: warnet.flatpak

@@ -17,7 +17,7 @@ python -m pip wheel --wheel-dir=wheels warnet
 
 # Setup flatpak output dir
 if [ -n "$GITHUB_REF" ]; then
-    export LOCATION=/home/runner/warnet_flatpak
+    exit 0
 else
     export LOCATION=/tmp/warnet-flatpak/
 fi
