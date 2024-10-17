@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 from pathlib import Path
 
 from test_base import TestBase
@@ -14,12 +15,14 @@ class ScenariosTest(TestBase):
     def __init__(self):
         super().__init__()
         self.network_dir = Path(os.path.dirname(__file__)) / "data" / "12_node_ring"
+        self.scen_dir = Path(os.path.dirname(__file__)).parent / "resources" / "scenarios"
 
     def run_test(self):
         try:
             self.setup_network()
             self.run_and_check_miner_scenario_from_file()
             self.run_and_check_scenario_from_file()
+            self.run_and_check_scenario_from_file_debug()
             self.check_regtest_recon()
             self.check_active_count()
         finally:
@@ -71,7 +74,7 @@ class ScenariosTest(TestBase):
         return count >= start + target_blocks
 
     def run_and_check_miner_scenario_from_file(self):
-        scenario_file = "resources/scenarios/miner_std.py"
+        scenario_file = self.scen_dir / "miner_std.py"
         self.log.info(f"Running scenario from file: {scenario_file}")
         self.warnet(f"run {scenario_file} --allnodes --interval=1")
         start = int(self.warnet("bitcoin rpc tank-0000 getblockcount"))
@@ -81,22 +84,28 @@ class ScenariosTest(TestBase):
         assert "Active Scenarios: 1" in table
         self.stop_scenario()
 
-    def run_and_check_scenario_from_file(self):
-        scenario_file = "test/data/scenario_p2p_interface.py"
+    def run_and_check_scenario_from_file_debug(self):
+        scenario_file = self.scen_dir / "test_scenarios" / "p2p_interface.py"
         self.log.info(f"Running scenario from: {scenario_file}")
-        self.warnet(f"run {scenario_file}")
+        output = self.warnet(f"run {scenario_file} --source_dir={self.scen_dir} --debug")
+        self.check_for_pod_deletion_message(output)
+
+    def run_and_check_scenario_from_file(self):
+        scenario_file = self.scen_dir / "test_scenarios" / "p2p_interface.py"
+        self.log.info(f"Running scenario from: {scenario_file}")
+        self.warnet(f"run {scenario_file} --source_dir={self.scen_dir}")
         self.wait_for_predicate(self.check_scenario_clean_exit)
 
     def check_regtest_recon(self):
-        scenario_file = "resources/scenarios/reconnaissance.py"
+        scenario_file = self.scen_dir / "reconnaissance.py"
         self.log.info(f"Running scenario from file: {scenario_file}")
         self.warnet(f"run {scenario_file}")
         self.wait_for_predicate(self.check_scenario_clean_exit)
 
     def check_active_count(self):
-        scenario_file = "test/data/scenario_buggy_failure.py"
+        scenario_file = self.scen_dir / "test_scenarios" / "buggy_failure.py"
         self.log.info(f"Running scenario from: {scenario_file}")
-        self.warnet(f"run {scenario_file}")
+        self.warnet(f"run {scenario_file} --source_dir={self.scen_dir}")
 
         def two_pass_one_fail():
             deployed = scenarios_deployed()
@@ -107,6 +116,12 @@ class ScenariosTest(TestBase):
         self.wait_for_predicate(two_pass_one_fail)
         table = self.warnet("status")
         assert "Active Scenarios: 0" in table
+
+    def check_for_pod_deletion_message(self, input):
+        message = "Deleting pod..."
+        self.log.info(f"Checking for message: '{message}'")
+        assert re.search(re.escape(message), input, flags=re.MULTILINE)
+        self.log.info(f"Found message: '{message}'")
 
 
 if __name__ == "__main__":

@@ -16,59 +16,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: eifinger/setup-uv@v1
-      - run: uvx ruff check .
+      - name: Install a specific version of uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.4.4"
+          enable-cache: true
+      - run: uvx ruff@0.6.8 check .
 
   ruff-format:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v2
+      - name: Install a specific version of uv
+        uses: astral-sh/setup-uv@v3
         with:
-          version: "latest"
+          version: "0.4.4"
           enable-cache: true
-      - run: uvx ruff format . --check
-
-  build-image:
-    needs: [ruff, ruff-format]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and export
-        uses: docker/build-push-action@v5
-        with:
-          file: resources/images/commander/Dockerfile
-          context: .
-          tags: bitcoindevproject/warnet-commander:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          outputs: type=docker,dest=/tmp/commander.tar
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: commander
-          path: /tmp/commander.tar
+      - run: uvx ruff@0.6.8 format . --check
 
   test:
-    needs: [build-image]
+    needs: [ruff, ruff-format]
     runs-on: ubuntu-latest
     strategy:
       matrix:
         test:
           - conf_test.py
           - dag_connection_test.py
+          - graph_test.py
           - logging_test.py
           - rpc_test.py
           - services_test.py
           - signet_test.py
           - scenarios_test.py
+          - namespace_admin_test.py
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4.2.0
@@ -78,11 +58,8 @@ jobs:
         with:
           cpus: max
           memory: 4000m
-      - name: Download commander artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: commander
-          path: /tmp
+      - name: Start minikube's loadbalancer tunnel
+        run: minikube tunnel &> /dev/null &
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@v2
         with:
@@ -92,12 +69,6 @@ jobs:
         run: uv python install $PYTHON_VERSION
       - name: Install project
         run: uv sync --all-extras --dev
-      - name: Install commander image
-        run: |
-          echo loading commander image into minikube docker
-          eval $(minikube -p minikube docker-env)
-          docker load --input /tmp/commander.tar
-          docker image ls -a
       - name: Run tests
         run: |
           source .venv/bin/activate
@@ -122,24 +93,3 @@ jobs:
           name: kubernetes-logs-${{ matrix.test }}
           path: ./k8s-logs
           retention-days: 5
-  test-without-mk:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        test:
-          - graph_test.py
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@v2
-        with:
-          version: "latest"
-          enable-cache: true
-      - name: Install Python
-        run: uv python install $PYTHON_VERSION
-      - name: Install project
-        run: uv sync --all-extras --dev
-      - name: Run tests
-        run: |
-          source .venv/bin/activate
-          ./test/${{matrix.test}}

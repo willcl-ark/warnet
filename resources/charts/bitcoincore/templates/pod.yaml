@@ -9,12 +9,13 @@ metadata:
     {{- end }}
     chain: {{ .Values.chain }}
     RPCPort: "{{ index .Values .Values.chain "RPCPort" }}"
+    rpcpassword: {{ .Values.rpcpassword }}
     app: {{ include "bitcoincore.fullname" . }}
     {{- if .Values.collectLogs }}
     collect_logs: "true"
     {{- end }}
   annotations:
-    init_peers: "{{ .Values.connect | len }}"
+    init_peers: "{{ .Values.addnode | len }}"
 spec:
   restartPolicy: "{{ .Values.restartPolicy }}"
   {{- with .Values.imagePullSecrets }}
@@ -89,7 +90,7 @@ spec:
         - name: BITCOIN_RPC_USER
           value: user
         - name: BITCOIN_RPC_PASSWORD
-          value: password
+          value: {{ .Values.rpcpassword }}
         {{- if .Values.metrics }}
         - name: METRICS
           value: {{ .Values.metrics }}
